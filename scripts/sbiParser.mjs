@@ -840,51 +840,49 @@ export class sbiParser {
     static getBlockDatas(lines) {
         const validLines = lines.filter(l => l.line);
 
-        // Pull out the entire spell block because it's formatted differently than all the other action blocks.
+        // Pull out spell blocks because they're formatted differently than other action blocks.
+        // Keep each spellcasting feature separate so an actor can have both Spellcasting
+        // and Innate Spellcasting.
         const notSpellLines = [];
-        const spellLines = [];
-        let foundSpellBlock = false;
+        const spellBlocks = [];
+        let currentSpellBlock = null;
 
-        // Start taking lines from the spell block when we've found the beginning until 
-        // we've gotten into the spells and hit a line where the next line has a period.
         for (let index = 0; index < validLines.length; index++) {
             let l = validLines[index];
 
-            if (!foundSpellBlock) {
-                foundSpellBlock = l.line.match(/^innate spellcasting\b|^spellcasting\b/i) != null;
-                if (foundSpellBlock && l.line === "Spellcasting" && !l.line.endsWith(".")) {
-                    l.line = l.line + ".";
+            if (!currentSpellBlock) {
+                const startsSpellBlock = l.line.match(/^innate spellcasting\b|^spellcasting\b/i) != null;
+                if (startsSpellBlock) {
+                    if (l.line === "Spellcasting" && !l.line.endsWith(".")) {
+                        l.line = l.line + ".";
+                    }
+                    currentSpellBlock = [];
+                    spellBlocks.push(currentSpellBlock);
                 }
             }
 
-            // If we're inside of a spell block, store it off in the spell lines array,
-            // otherwise store it into the not spell lines array.
-            if (foundSpellBlock) {
-                spellLines.push(l);
+            if (currentSpellBlock) {
+                currentSpellBlock.push(l);
             } else {
-                foundSpellBlock = false;
                 notSpellLines.push(l);
             }
 
-            // Check to see if we've reached the end of the spell block
-            // by seeing if the next line is a title.
             const nextLineIsTitle = index < validLines.length - 1
                 && validLines[index + 1].line.match(sRegex.getBlockTitle(this.cleanLines))
                 && !validLines[index + 1].line.match(sRegex.spellGroup);
 
-            if (foundSpellBlock && nextLineIsTitle) {
-                // Add a period at the end so that blocks are extracted correctly.
-                if (!spellLines[spellLines.length - 1].line.endsWith(".")) {
-                    spellLines[spellLines.length - 1].line = spellLines[spellLines.length - 1].line + ".";
+            if (currentSpellBlock && nextLineIsTitle) {
+                if (!currentSpellBlock[currentSpellBlock.length - 1].line.endsWith(".")) {
+                    currentSpellBlock[currentSpellBlock.length - 1].line =
+                        currentSpellBlock[currentSpellBlock.length - 1].line + ".";
                 }
-
-                // Break out of the spell block.
-                foundSpellBlock = false;
+                currentSpellBlock = null;
             }
         }
 
+        const spellLines = spellBlocks.flat();
         const actionsLines = [...notSpellLines, ...spellLines];
-        const titleMatchesLines = [...notSpellLines, ...spellLines.slice(0, 1)];
+        const titleMatchesLines = [...notSpellLines, ...spellBlocks.map(block => block[0])];
         
         let titleMatches = this.matchAndAnnotate(titleMatchesLines, sRegex.getBlockTitle(this.cleanLines));
         if (!titleMatches.length) {

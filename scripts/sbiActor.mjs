@@ -135,16 +135,11 @@ export class sbiActor {
         });
         // Enrich reference to existing spell in Multiattack
         enrichedDescription = enrichedDescription.replace(/(?<=a\suse\sof\s(\(\w\)\s)?spellcasting\sto\scast\s)(?<spellName>(?:[^,.:;\s]|\s(?!\())+)/i, (match) => {
-            let uuid;
-            if (!game.settings.get(MODULE_NAME, "spellsAsActivities")) {
-                uuid = this.#dnd5e.items?.find(i => i.type === "spell" && compareItems(i.name, match))?.sourceUuid;
-            } else {
-                uuid = this.spellcastingFeature.spellInfo
-                    .filter(spellGroup => spellGroup.name !== "Description")
-                    .map(spellGroup => spellGroup.value)
-                    .flat()
-                    .find(spell => compareItems(spell.name, match))?.uuid;
-            }
+            const uuid = this.spellcastingFeature?.spellInfo
+                ?.filter(spellGroup => spellGroup.name !== "Description")
+                .map(spellGroup => spellGroup.value)
+                .flat()
+                .find(spell => compareItems(spell.name, match))?.uuid;
             if (uuid) return "<em>@UUID[" + uuid + "]</em>";
             return match;
         });
@@ -988,8 +983,6 @@ export class sbiActor {
     }
 
     async setSpellcasting(spellcastingType) {
-        const isInnate = ["innateSpellcasting", "utilitySpells"].includes(spellcastingType);
-
         const { featureName, spellcastingDetails, spellInfo } = this[spellcastingType];
         const itemData = {};
         itemData.name = featureName;
@@ -1015,7 +1008,7 @@ export class sbiActor {
             if (matchingImage) itemData.img = matchingImage;
 
             // Add spells to actor.
-            const useActivities = game.settings.get(MODULE_NAME, "spellsAsActivities") && isInnate;
+            const useActivities = spellcastingType !== "spellcasting";
             for (const spellObj of spellObjs) {
                 let castActivity = {_id: foundry.utils.randomID(), type: "cast"};
                 castActivity.name = spellObj.name; // This is not actually going to be saved (name is going to be derived from the spell itself), but we need it to compare later
@@ -1027,7 +1020,7 @@ export class sbiActor {
                     castActivity.spell = {
                         uuid: spellObj.uuid,
                         level: spellObj.level ?? spell.system.level,
-                        spellbook: false, // this will be updated after the actor is created
+                        spellbook: false, // Enabled after Actor creation so D&D5e creates the cached spell.
                     };
                 }
 
