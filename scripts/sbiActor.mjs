@@ -77,12 +77,12 @@ export class sbiActor {
         this.setLanguages();
         this.setOtherInfo();
         this.setRacialDetails();
-        this.setRole();
         this.setSavingThrows();
         this.setSenses();
         this.setSpeed();
         this.setSouls();
         this.setSource();
+        this.setRole();
     }
 
     set5eProperty(path, value) {
@@ -264,7 +264,7 @@ export class sbiActor {
                 } else if (isLegendaryTypeAction) {
                     const actionCount = actionData.value.legendaryActionCount || 3;
                     
-                    this.set5eProperty("system.resources.legact.value", actionCount);
+                    this.set5eProperty("system.resources.legact.spent", 0);
                     this.set5eProperty("system.resources.legact.max", actionCount);
                 }
             } else {
@@ -518,7 +518,7 @@ export class sbiActor {
 
                 let activityId = foundry.utils.randomID();
                 if (featureData.value.legendaryResistanceCount) {
-                    this.set5eProperty("system.resources.legres.value", featureData.value.legendaryResistanceCount);
+                    this.set5eProperty("system.resources.legres.spent", 0);
                     this.set5eProperty("system.resources.legres.max", featureData.value.legendaryResistanceCount);
                 }
 
@@ -728,13 +728,14 @@ export class sbiActor {
     }
 
     async setArmor() {
-        if (this.armor) {
-            if (this.armor.types?.includes("natural armor")) {
-                this.set5eProperty("system.attributes.ac.calc", "natural");
-                this.set5eProperty("system.attributes.ac.flat", this.armor.ac);
-            } else {
-                this.set5eProperty("system.attributes.ac.calc", "default");
-            }
+        if (!this.armor) return;
+
+        const hasNaturalArmor = this.armor.types.some(type => type.toLowerCase() === "natural armor");
+        const hasExplicitArmor = this.armor.types.length > 0;
+
+        if (hasNaturalArmor || !hasExplicitArmor) {
+            this.set5eProperty("system.attributes.ac.calcs", ["natural"]);
+            this.set5eProperty("system.attributes.ac.flat", this.armor.ac);
         }
     }
 
@@ -816,7 +817,7 @@ export class sbiActor {
 
         const dexterityMod = sUtils.getAbilityMod(this.#dnd5e.system.abilities.dex?.value || 10);
         if (dexterityMod !== this.initiative.mod) {
-            this.set5eProperty("system.attributes.init.bonus", this.initiative.mod - dexterityMod);
+            this.set5eProperty("system.attributes.init.roll.bonus", `${this.initiative.mod - dexterityMod}`);
         }
     }
 
@@ -848,33 +849,22 @@ export class sbiActor {
         if (!this.size)
             this.size = "medium";
 
-        const getSizeAbbreviation = (size) => {
-            switch (size) {
-                case "small":
-                    return "sm";
-                case "medium":
-                    return "med";
-                case "large":
-                    return "lg";
-                case "gargantuan":
-                    return "grg";
-                default:
-                    return size;
-            }
+        const normalizeSize = (size) => {
+            if (["fine", "diminutive"].includes(size))
+                size = "tiny";
+            else if (size === "colossal")
+                size = "gargantuan";
+
+            return CONFIG.DND5E.actorSizes.fullKeys[size] ?? size;
         };
 
-        let sizeValue = this.size.toLowerCase();
-        const swarmSizeValue = this.swarmSize?.toLowerCase();
+        const sizeValue = normalizeSize(this.size.toLowerCase());
+        const swarmSizeValue = this.swarmSize ? normalizeSize(this.swarmSize.toLowerCase()) : null;
 
-        if (["fine", "diminutive"].includes(sizeValue))
-            sizeValue = "tiny";
-        if (sizeValue === "colossal")
-            sizeValue = "gargantuan";
-
-        this.set5eProperty("system.traits.size", getSizeAbbreviation(sizeValue));
+        this.set5eProperty("system.traits.size", sizeValue);
 
         if (swarmSizeValue) {
-            this.set5eProperty("system.details.type.swarm", getSizeAbbreviation(swarmSizeValue));
+            this.set5eProperty("system.details.type.swarm", swarmSizeValue);
         }
 
         if (this.alignment)
@@ -894,8 +884,8 @@ export class sbiActor {
     setRole() {
         if (!this.role) return;
 
-        this.set5eProperty("system.details.source.custom", this.role);
-        this.set5eProperty("system.details.source.book", "Flee, Mortals!");
+        this.set5eProperty("system.source.custom", this.role);
+        this.set5eProperty("system.source.book", "Flee, Mortals!");
     }
 
     setSavingThrows() {
@@ -916,24 +906,7 @@ export class sbiActor {
             if (senseName === "perception") {
                 continue;
             } else if (senseName === "blindsight" || senseName === "darkvision" || senseName === "tremorsense" || senseName === "truesight") {
-                this.set5eProperty(`system.attributes.senses.${senseName}`, senseRange);
-                switch (senseName) {
-                    case "darkvision":
-                        this.set5eProperty("prototypeToken.sight.range", senseRange);
-                        break;
-                    case "tremorsense":
-                        this.set5eProperty("prototypeToken.detectionModes", (this.#dnd5e.prototypeToken?.detectionModes || []).concat([{enabled: true, id: "feelTremor", range: senseRange}]));
-                        break;
-                    case "blindsight":
-                        this.set5eProperty("prototypeToken.detectionModes", (this.#dnd5e.prototypeToken?.detectionModes || []).concat([{enabled: true, id: "blindsight", range: senseRange}]));
-                        break;
-                    case "truesight":
-                        this.set5eProperty("prototypeToken.detectionModes", (this.#dnd5e.prototypeToken?.detectionModes || []).concat([{enabled: true, id: "seeAll", range: senseRange}]));
-                        break;
-                    default:
-                        break;
-                }
-                this.set5eProperty("prototypeToken.sight.enabled", false);
+                this.set5eProperty(`system.attributes.senses.ranges.${senseName}`, senseRange);
             } else {
                 const specialSense = sUtils.capitalizeFirstLetter(senseName);
                 specialSenses.push(`${specialSense} ${senseRange} ft`);
@@ -984,16 +957,16 @@ export class sbiActor {
         const walkSpeed = this.speeds.find(s => s.name.toLowerCase() === "walk");
         const otherSpeeds = this.speeds.filter(s => s != walkSpeed);
         if (otherSpeeds.length) {
-            this.set5eProperty("system.attributes.movement", {
+            this.set5eProperty("system.attributes.movement.speeds", {
                 burrow: parseInt(otherSpeeds.find(s => s.name.toLowerCase() === "burrow")?.value ?? 0),
                 climb: parseInt(otherSpeeds.find(s => s.name.toLowerCase() === "climb")?.value ?? 0),
                 fly: parseInt(otherSpeeds.find(s => s.name.toLowerCase() === "fly")?.value ?? 0),
-                swim: parseInt(otherSpeeds.find(s => s.name.toLowerCase() === "swim")?.value ?? 0),
-                hover: otherSpeeds.find(s => s.name.toLowerCase() === "hover") != undefined
+                swim: parseInt(otherSpeeds.find(s => s.name.toLowerCase() === "swim")?.value ?? 0)
             });
+            this.set5eProperty("system.attributes.movement.hover", otherSpeeds.find(s => s.name.toLowerCase() === "hover") != undefined);
         }
         if (walkSpeed) {
-            this.set5eProperty("system.attributes.movement.walk", parseInt(walkSpeed.value));
+            this.set5eProperty("system.attributes.movement.speeds.walk", parseInt(walkSpeed.value));
         }
     }
 
@@ -1015,7 +988,7 @@ export class sbiActor {
 
         // Set spellcaster level
         if (spellcastingDetails.level) {
-            this.set5eProperty("system.details.spellLevel", parseInt(spellcastingDetails.level));
+            this.set5eProperty("system.attributes.spell.level", parseInt(spellcastingDetails.level));
         }
 
         // Set spellcasting ability.

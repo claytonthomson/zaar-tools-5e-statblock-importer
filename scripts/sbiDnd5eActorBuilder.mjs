@@ -17,9 +17,8 @@ export class sbiDnd5eActorBuilder {
 
             // Check if AC needs fixed (if mage armor, skip check)
             if (this.actor.armor && !this.actor.armor.types.includes("mage") && this.actor.armor.ac !== actor5e.system.attributes.ac.value) {
-                actor5e.update({
-                    "system.attributes.ac.calc": "flat",
-                    "system.attributes.ac.flat": this.actor.armor.ac
+                await actor5e.update({
+                    "system.attributes.ac.override": this.actor.armor.ac
                 });
             }
 
