@@ -942,6 +942,7 @@ export class sbiParser {
                 const spellGroup = new NameValueData(spellGroupMatch.groups.spellGroup, []);
                 const spellNameMatches = this.matchAndAnnotate(spellBlock.value.lines, sRegex.spellName, spellListStart, spellListEnd);
                 let spellType, spellCount, spellLevel;
+                const spellGroupLevel = spellGroupMatch.groups.level ? parseInt(spellGroupMatch.groups.level) : undefined;
                 for (const spellMatch of spellNameMatches) {
                     spellLevel = undefined;
                     let spellName = sUtils.capitalizeAll(spellMatch.groups.spellName).replace(/\(.*\)/, "").trim();
@@ -957,7 +958,13 @@ export class sbiParser {
                     } else if (spellGroupMatch.groups.spellGroup.toLowerCase().includes("at will")) {
                         spellType = spellcastingType === "spellcasting" ? "cantrip" : "at will";
                     }
-                    spellGroup.value.push({name: spellName, type: spellType, count: spellCount, level: spellLevel});
+                    spellGroup.value.push({
+                        name: spellName,
+                        type: spellType,
+                        count: spellCount,
+                        level: spellLevel,
+                        groupLevel: spellGroupLevel
+                    });
                     // Special info for Mage Armor (included in AC), so we can calculate later
                     if (spellName === "Mage Armor" && spellMatch.groups.affectsAC) {
                         this.actor.armor.types.push("mage");

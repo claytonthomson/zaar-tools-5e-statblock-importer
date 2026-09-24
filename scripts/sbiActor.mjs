@@ -166,7 +166,6 @@ export class sbiActor {
     async setActions() {
         for (const actionData of this.actions) {
             const name = actionData.name;
-            const lowerName = name.toLowerCase();
             const description = this.enrichDescription(sUtils.combineSourceLines(actionData.value.lines));
 
             const itemData = {};
@@ -174,16 +173,6 @@ export class sbiActor {
             itemData.type = "feat";
 
             foundry.utils.setProperty(itemData, "system.description.value", description);
-
-            // The "Multiattack" action isn't a real action, so there's nothing more to add to it.
-            if (lowerName !== "multiattack") {
-                // We'll assume that an NPC with stuff will have that stuff identified, equipped, attuned, etc.
-                foundry.utils.setProperty(itemData, "system.identified", true);
-                foundry.utils.setProperty(itemData, "system.equipped", true);
-                foundry.utils.setProperty(itemData, "system.attunement", 2);
-                foundry.utils.setProperty(itemData, "system.proficient", true);
-                foundry.utils.setProperty(itemData, "system.quantity", 1);
-            }
 
             const matchingImage = await sUtils.getImgFromPackItemAsync(itemData.name.toLowerCase());
             if (matchingImage) itemData.img = matchingImage;
@@ -202,9 +191,18 @@ export class sbiActor {
 
             if (actionData.value.spell) {
                 itemData.type = "spell";
-                foundry.utils.setProperty(itemData, "system.preparation.mode", "innate");
+                foundry.utils.setProperty(itemData, "system.method", "innate");
                 foundry.utils.setProperty(itemData, "system.level", actionData.value.spell.level);
                 foundry.utils.setProperty(itemData, "system.properties", ["concentration"]);
+            }
+
+            if (itemData.type === "weapon") {
+                foundry.utils.setProperty(itemData, "system.identified", true);
+                foundry.utils.setProperty(itemData, "system.equipped", true);
+                foundry.utils.setProperty(itemData, "system.attunement", "required");
+                foundry.utils.setProperty(itemData, "system.attuned", true);
+                foundry.utils.setProperty(itemData, "system.proficient", 1);
+                foundry.utils.setProperty(itemData, "system.quantity", 1);
             }
 
             this.addItem(itemData);
@@ -243,10 +241,6 @@ export class sbiActor {
 
                 const matchingImage = await sUtils.getImgFromPackItemAsync(itemData.name.toLowerCase());
                 if (matchingImage) itemData.img = matchingImage;
-
-                // Add these just so that it doesn't say the action is not equipped and not proficient in the UI.
-                foundry.utils.setProperty(itemData, "system.equipped", true);
-                foundry.utils.setProperty(itemData, "system.proficient", true);
 
                 // Lair Actions are often not included in the statblock itself. We check our major actions description for lair mentions
                 if (/\bin\slair\b/i.test(actionData.value.lines[0].line)) {
@@ -460,7 +454,10 @@ export class sbiActor {
             }
         }
 
-        foundry.utils.setProperty(itemData, `system.damage.base`, damageParts[0]);
+        const isWeaponItem = itemData.type === "weapon" && !actionData.value.spell;
+        if (isWeaponItem) {
+            foundry.utils.setProperty(itemData, "system.damage.base", damageParts[0]);
+        }
         foundry.utils.setProperty(itemData, `system.activities.${activityId}.damage.parts`, []);
         // For spell attacks: we don't include the base damage and we just re-add it in the activity, because we don't want the automatic + @mod
         if (activity === "attack" && actionData.value.type === "spell") {
@@ -492,8 +489,12 @@ export class sbiActor {
                     types: [versatileDamageType]
                 }
             }
-            foundry.utils.setProperty(itemData, `system.damage.versatile`, versatileDamagePart);
-            foundry.utils.setProperty(itemData, `system.properties.ver`, true);
+            if (isWeaponItem) {
+                foundry.utils.setProperty(itemData, "system.damage.versatile", versatileDamagePart);
+                foundry.utils.setProperty(itemData, "system.properties", [
+                    ...new Set([...(itemData.system.properties ?? []), "ver"])
+                ]);
+            }
         }
     }
 
@@ -646,7 +647,9 @@ export class sbiActor {
     setRange(actionData, itemData) {
         if (actionData.value.range) {
             foundry.utils.setProperty(itemData, "system.range.value", actionData.value.range.near);
-            foundry.utils.setProperty(itemData, "system.range.long", actionData.value.range.far);
+            if (!actionData.value.spell) {
+                foundry.utils.setProperty(itemData, "system.range.long", actionData.value.range.far);
+            }
             foundry.utils.setProperty(itemData, "system.range.units", "ft");
             
             let attackActivityId = Object.values(itemData.system.activities).find(a => a.type == "attack")._id;
@@ -661,7 +664,11 @@ export class sbiActor {
 
     setReach(actionData, itemData) {
         if (actionData.value.reach) {
-            foundry.utils.setProperty(itemData, "system.range.reach", actionData.value.reach);
+            if (actionData.value.spell) {
+                foundry.utils.setProperty(itemData, "system.range.value", actionData.value.reach);
+            } else {
+                foundry.utils.setProperty(itemData, "system.range.reach", actionData.value.reach);
+            }
             foundry.utils.setProperty(itemData, "system.range.units", "ft");
 
             let attackActivityId = Object.values(itemData.system.activities).find(a => a.type == "attack")._id;
@@ -702,11 +709,12 @@ export class sbiActor {
                     foundry.utils.setProperty(itemData, `system.activities.${activityId}.target.template.type`, actionData.value.target.shape);
                     foundry.utils.setProperty(itemData, `system.activities.${activityId}.target.template.units`, "ft");
                 } else {
-                    // We set these on the item first, then on the activity. One of the two will most likely be discarded but it works.
-                    foundry.utils.setProperty(itemData, "system.target.affects.type", actionData.value.target.type);
-                    foundry.utils.setProperty(itemData, "system.target.affects.count", actionData.value.target.amount);
-                    foundry.utils.setProperty(itemData, "system.range.value", actionData.value.target.range);
-                    foundry.utils.setProperty(itemData, "system.range.units", "ft");
+                    if (actionData.value.spell) {
+                        foundry.utils.setProperty(itemData, "system.target.affects.type", actionData.value.target.type);
+                        foundry.utils.setProperty(itemData, "system.target.affects.count", actionData.value.target.amount);
+                        foundry.utils.setProperty(itemData, "system.range.value", actionData.value.target.range);
+                        foundry.utils.setProperty(itemData, "system.range.units", "ft");
+                    }
 
                     foundry.utils.setProperty(itemData, `system.activities.${activityId}.target.affects.type`, actionData.value.target.type);
                     foundry.utils.setProperty(itemData, `system.activities.${activityId}.target.affects.count`, actionData.value.target.amount);
@@ -759,8 +767,9 @@ export class sbiActor {
             }
             if (item) {
                 item.system.equipped = true;
-                item.system.proficient = true;
-                item.system.attunement = 2;
+                item.system.proficient = 1;
+                item.system.attunement = "required";
+                item.system.attuned = true;
                 item.system.quantity = gearItem.quantity;
                 this.addItem(item);
             }
@@ -1024,10 +1033,17 @@ export class sbiActor {
 
                 if (spellObj.type === "slots") {
                     // Update the actor's number of slots per level.
-                    this.set5eProperty(`system.spells.spell${spell.system.level}.value`, spellObj.count);
-                    this.set5eProperty(`system.spells.spell${spell.system.level}.override`, spellObj.count);
+                    const slotLevel = spellObj.groupLevel ?? spell.system.level;
+                    if (slotLevel !== undefined && slotLevel !== null) {
+                        this.set5eProperty(`system.spells.spell${slotLevel}.value`, spellObj.count);
+                        this.set5eProperty(`system.spells.spell${slotLevel}.override`, spellObj.count);
+                    }
                     if (!useActivities) {
-                        foundry.utils.setProperty(spell, "system.preparation.prepared", true);
+                        if (spell.system.level === undefined && spellObj.groupLevel !== undefined) {
+                            foundry.utils.setProperty(spell, "system.level", spellObj.groupLevel);
+                        }
+                        foundry.utils.setProperty(spell, "system.method", "spell");
+                        foundry.utils.setProperty(spell, "system.prepared", 1);
                     }
                 } else if (spellObj.type === "innate") {
                     if (spellObj.count) {
@@ -1050,16 +1066,19 @@ export class sbiActor {
                             }]);
                             foundry.utils.setProperty(spell, "system.uses.max", "" + spellObj.count);
                             foundry.utils.setProperty(spell, "system.uses.recovery", [{period: "day", type: "recoverAll"}]);
-                            foundry.utils.setProperty(spell, "system.preparation.mode", "innate");
+                            foundry.utils.setProperty(spell, "system.method", "innate");
                         }
                     } else {
-                        foundry.utils.setProperty(spell, "system.preparation.mode", "atwill");
+                        foundry.utils.setProperty(spell, "system.method", "atwill");
                     }
                 } else if (spellObj.type === "at will") {
-                    foundry.utils.setProperty(spell, "system.preparation.mode", "atwill");
+                    foundry.utils.setProperty(spell, "system.method", "atwill");
                 } else if (spellObj.type === "cantrip") {
-                    // Don't need to set anything special because it should already be set on the spell we retrieved from the pack.
-                    foundry.utils.setProperty(spell, "system.preparation.prepared", true);
+                    if (spell.system.level === undefined) {
+                        foundry.utils.setProperty(spell, "system.level", 0);
+                    }
+                    foundry.utils.setProperty(spell, "system.method", "spell");
+                    foundry.utils.setProperty(spell, "system.prepared", 1);
                 }
 
                 if (useActivities) {
