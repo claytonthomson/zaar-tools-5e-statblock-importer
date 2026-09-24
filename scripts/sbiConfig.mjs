@@ -1,4 +1,4 @@
-import sortablejs from '../lib/sortable.1.15.6.js';
+import sortablejs from '../lib/sortable.1.15.6.mjs';
 
 export const MODULE_NAME = "zaar-tools-5e-statblock-importer";
 

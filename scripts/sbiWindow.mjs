@@ -1,7 +1,7 @@
-import { sbiUtils } from "./sbiUtils.js";
-import { sbiParser } from "./sbiParser.js";
-import { MODULE_NAME, CompendiumOptionsMenu } from "./sbiConfig.js";
-import { Blocks } from "./sbiData.js";
+import { sbiUtils } from "./sbiUtils.mjs";
+import { sbiParser } from "./sbiParser.mjs";
+import { MODULE_NAME, CompendiumOptionsMenu } from "./sbiConfig.mjs";
+import { Blocks } from "./sbiData.mjs";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 

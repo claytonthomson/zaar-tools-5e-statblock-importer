@@ -1,4 +1,4 @@
-import { getPacks, MODULE_NAME } from "./sbiConfig.js";
+import { getPacks, MODULE_NAME } from "./sbiConfig.mjs";
 
 const logPrefix = "5e Statblock Importer |";
 

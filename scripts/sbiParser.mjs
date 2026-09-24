@@ -1,6 +1,6 @@
-import { sbiUtils as sUtils } from "./sbiUtils.js";
-import { sbiRegex as sRegex } from "./sbiRegex.js";
-import { sbiActor as sActor } from "./sbiActor.js";
+import { sbiUtils as sUtils } from "./sbiUtils.mjs";
+import { sbiRegex as sRegex } from "./sbiRegex.mjs";
+import { sbiActor as sActor } from "./sbiActor.mjs";
 import {
     NameValueData,
     ArmorData,
@@ -10,7 +10,7 @@ import {
     DamageConditionId,
     KnownCreatureTypes,
     Blocks
-} from "./sbiData.js";
+} from "./sbiData.mjs";
 
 // Steps that the parser goes through:
 //  - Break text into well defined statblock parts

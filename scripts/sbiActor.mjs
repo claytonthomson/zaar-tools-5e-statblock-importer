@@ -1,7 +1,7 @@
-import { sbiUtils as sUtils } from "./sbiUtils.js";
-import { Blocks } from "./sbiData.js";
-import { MODULE_NAME } from "./sbiConfig.js";
-import { sbiRegex as sRegex} from "./sbiRegex.js";
+import { sbiUtils as sUtils } from "./sbiUtils.mjs";
+import { Blocks } from "./sbiData.mjs";
+import { MODULE_NAME } from "./sbiConfig.mjs";
+import { sbiRegex as sRegex} from "./sbiRegex.mjs";
 
 export class sbiActor {
     #dnd5e = {};

@@ -1,8 +1,8 @@
-import { MODULE_NAME } from "./sbiConfig.js";
-import { registerSettings } from "./sbiConfig.js";
-import { sbiUtils } from "./sbiUtils.js";
-import { sbiWindow } from "./sbiWindow.js";
-import { sbiParser } from "./sbiParser.js";
+import { MODULE_NAME } from "./sbiConfig.mjs";
+import { registerSettings } from "./sbiConfig.mjs";
+import { sbiUtils } from "./sbiUtils.mjs";
+import { sbiWindow } from "./sbiWindow.mjs";
+import { sbiParser } from "./sbiParser.mjs";
 
 Hooks.on("init", () => {
     registerSettings();
