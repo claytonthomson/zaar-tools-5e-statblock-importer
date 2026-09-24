@@ -2,6 +2,7 @@ import { sbiUtils as sUtils } from "./sbiUtils.mjs";
 import { Blocks } from "./sbiData.mjs";
 import { MODULE_NAME } from "./sbiConfig.mjs";
 import { sbiRegex as sRegex} from "./sbiRegex.mjs";
+import { sbiDnd5eActorBuilder } from "./sbiDnd5eActorBuilder.mjs";
 
 export class sbiActor {
     #dnd5e = {};
@@ -799,54 +800,10 @@ export class sbiActor {
     }
 
     async createActor5e(selectedFolderId) {
-
-        await this.updateActorData();
-
-        const actorData = foundry.utils.deepClone(this.#dnd5e);
-        actorData.folder = selectedFolderId;
-        actorData.name = this.name;
-        actorData.type = "npc";
-        
-        const actor5e = await CONFIG.Actor.documentClass.create(actorData);
-        if (actor5e) {
-            await this.setSkills(actor5e);
-
-            // Check if AC needs fixed (if mage armor, skip check)
-            if (this.armor && !this.armor.types.includes("mage") && this.armor.ac !== actor5e.system.attributes.ac.value) {
-                actor5e.update({
-                    "system.attributes.ac.calc": "flat",
-                    "system.attributes.ac.flat": this.armor.ac
-                });
-            }
-
-            // Update cast activities to have the spells shown in the spellbook
-            for (const item of actor5e.items) {
-                for (const castActivity of (item.system.activities ?? []).filter(a => a.type === "cast")) {
-
-                    // We only display the spell in the spellbook if it's not already granted by the Spellcasting feature
-                    const spellAlreadyInSpellcasting = castActivity.item.name !== this.spellcastingFeature?.featureName && this.spellcastingFeature?.spellInfo?.some(
-                        spellGroup => Array.isArray(spellGroup.value) && spellGroup.value.some(s => s.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_") === castActivity._inferredSource.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_"))
-                    );
-
-                    if (!spellAlreadyInSpellcasting) {
-                        await castActivity.update({"spell.spellbook": true});
-                    }
-                }
-            }
-        }
-
-        if (!this.importIssues.missingSpells.length) {
-            delete this.importIssues.missingSpells;
-        }
-        if (!this.importIssues.obsoleteSpells.length) {
-            delete this.importIssues.obsoleteSpells;
-        }
-        if (!this.importIssues.crNotFound) {
-            delete this.importIssues.crNotFound;
-        }
-
-        return {actor5e, importIssues: this.importIssues};
+        const builder = new sbiDnd5eActorBuilder(this);
+        return builder.create(selectedFolderId);
     }
+
 
     setHealth() {
         this.set5eProperty("system.attributes.hp.value", this.health?.value || 0);
