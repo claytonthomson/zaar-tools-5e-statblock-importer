@@ -1,6 +1,6 @@
 import sortablejs from '../lib/sortable.1.15.6.js';
 
-export const MODULE_NAME = "5e-statblock-importer";
+export const MODULE_NAME = "zaar-tools-5e-statblock-importer";
 
 export function registerSettings() {
     game.settings.registerMenu(MODULE_NAME, "CompendiumOptionsMenu", {
