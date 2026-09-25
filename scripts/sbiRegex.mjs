@@ -67,7 +67,7 @@ export class sbiRegex {
     static skillDetails = /(?<name>\bacrobatics\b|\barcana\b|\banimal handling\b|\bathletics\b|\bdeception\b|\bhistory\b|\binsight\b|\bintimidation\b|\binvestigation\b|\bmedicine\b|\bnature\b|\bperception\b|\bperformance\b|\bpersuasion\b|\breligion\b|\bsleight of hand\b|\bstealth\b|\bsurvival\b) (?<modifier>[\+|-]\d+)/idg;
     static speedDetails = /(?:(?<=[^\w])(?<name>\w+)[\s:]+)?(?<value>\d+)/idg;
     static sourceDetails = /source[\s:]+(?<book>(.(?!,?\s+(?:page|pag|pg|p)\.?\s?(\d+)))+.)(,?\s+(?:page|pag|pg|p)\.?\s?(?<page>\d+))?/idg;
-    static spellcastingDetails = /spellcasting\sability\sis\s(?<ability>\w+)|(?<innateAbility>\w+)\sas\sthe\sspellcasting\sability|spell\ssave\sdc\s(?<saveDc>\d+)|(?<level>\d+)(.+)level\sspellcaster/idg;
+    static spellcastingDetails = /spellcasting\sability\sis\s(?<ability>\w+)|(?<innateAbility>\w+)\sas\sthe\sspellcasting\sability|spell\ssave\sdc\s(?<saveDc>\d+)|(?<level>\d+)(.+)level\sspellcaster|(?:(?:requires|requiring)\s+no|without)\s+(?<ignoredComponents>[^.;:]+?)\s+components?\b/idg;
 
     // The block title regex is complicated. Here's the breakdown...
     // (^|[.!]\s*\n)                                    <-  Before the title there's either the string start, or the end of a sentence and a newline.
@@ -121,7 +121,7 @@ export class sbiRegex {
     static range = /range\s(?<near>\d+)(\/(?<far>\d+))?\s?(f(ee|oo)?t|'|’)/idg;
     static reach = /reach\s(?<reach>\d+)\s?(f(ee|oo)?t|'|’)/idg;
     static recharge = /\(recharge\s(?<recharge>\d+)([–|-]\d+)?\)/idg;
-    static target = /(?:a\s(?<areaRange>\d+)(?:-?(?:foot|feet|ft?.|'|’)\s(?<shape>\w+))|(?<targetsAmount>each|a|one)\s[\w\s]+?(?:within\s(?<range>\d+)\s(?:foot|feet|ft?.|'|’)))/idg;
+    static target = /(?:a\s(?<areaRange>\d+)-?(?:foot|feet|ft?.|'|’)(?:-long,\s*(?<areaWidth>\d+)-?(?:foot|feet|ft?.|'|’)-wide)?\s(?<shape>\w+)|(?<targetsAmount>each|a|one)\s[\w\s]+?(?:within\s(?<range>\d+)\s(?:foot|feet|ft?.|'|’)))/idg;
 
     // Regexes for description enrichment
     static makesAttack1 = String.raw`with\sa\suse\sof\s(?:.*\sor\s(?:\(\w\)\s)?)?(?<attack1>(?:[^,.:;(\s]+\s?){1,4})(?:[,.:;]|\sto cast)`;

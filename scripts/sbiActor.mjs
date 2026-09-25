@@ -364,7 +364,7 @@ export class sbiActor {
             const calculatedToHit = sUtils.getAbilityMod(attackAbilityValue) + sUtils.getProficiencyBonus(this.#dnd5e.system.details.cr);
             if (actionData.value.attack.toHit && calculatedToHit != actionData.value.attack.toHit) {
                 foundry.utils.setProperty(itemData, `system.activities.${attackActivityId}.attack.flat`, true);
-                foundry.utils.setProperty(itemData, `system.activities.${attackActivityId}.attack.bonus`, parseInt(actionData.value.attack.toHit));
+                foundry.utils.setProperty(itemData, `system.activities.${attackActivityId}.attack.bonus`, String(parseInt(actionData.value.attack.toHit)));
             }
 
             if (actionData.value.attack.condition) {
@@ -377,7 +377,7 @@ export class sbiActor {
             saveActivityId = foundry.utils.randomID();
             foundry.utils.setProperty(itemData, `system.activities.${saveActivityId}`, {_id: saveActivityId, type: "save", activation: {type: "action", value: 1}});
             foundry.utils.setProperty(itemData, `system.activities.${saveActivityId}.damage.onSave`, actionData.value.save.damageOnSave);
-            foundry.utils.setProperty(itemData, `system.activities.${saveActivityId}.save`, {ability: sUtils.convertToShortAbility(actionData.value.save.ability), dc: {formula: parseInt(actionData.value.save.dc)}});
+            foundry.utils.setProperty(itemData, `system.activities.${saveActivityId}.save`, {ability: [sUtils.convertToShortAbility(actionData.value.save.ability)], dc: {formula: String(parseInt(actionData.value.save.dc))}});
 
             if (actionData.value.save.condition) {
                 foundry.utils.setProperty(itemData, "effects", [effect, ...(itemData.effects || [])]);
@@ -429,7 +429,7 @@ export class sbiActor {
                 }
             }
             if (activity === "save" && hasDamageMod) {
-                damagePart.bonus = damageMod;
+                damagePart.bonus = String(damageMod);
             }
             damageParts.push(damagePart);
         }
@@ -520,13 +520,14 @@ export class sbiActor {
 
                 foundry.utils.setProperty(itemData, "system.properties", ["trait", ...(itemData.system.properties ?? [])]);
                 foundry.utils.setProperty(itemData, `system.activities.${activityId}`, {
+                    _id: activityId,
                     type: "utility",
                     activation: {type: "special"},
                     consumption: {
                         targets: [{
                             type: "attribute",
                             target: "resources.legres.value",
-                            value: 1
+                            value: "1"
                         }]
                     },
                 });
@@ -584,23 +585,26 @@ export class sbiActor {
             for (const spellObj of actionData.value.castSpells || []) {
                 const spell = await this.fetchSpellByName(spellObj.name, true);
 
-                if (spell.sourceUuid) {
-                    updatedDescription = updatedDescription.replaceAll(spellObj.name, "<em>@UUID[" + spell.sourceUuid + "]</em>");
+                const spellUuid = spell.sourceUuid ?? spell.uuid;
+
+                if (spellUuid) {
+                    updatedDescription = updatedDescription.replaceAll(spellObj.name, "<em>@UUID[" + spellUuid + "]</em>");
                 }
 
                 const castActivity = {
                     _id: foundry.utils.randomID(),
                     type: "cast",
                     spell: {
-                        uuid: spell.sourceUuid,
+                        uuid: spellUuid,
                         level: spellObj.level ?? spell.system.level,
+                        properties: actionData.value.ignoredProperties ?? [],
                         spellbook: false, // this will be updated after the actor is created
                     }
                 };
                 if (actionData.value.perDay) {
                     foundry.utils.setProperty(castActivity, "consumption.targets", [{
                         type: "activityUses",
-                        value: 1
+                        value: "1"
                     }]);
                     foundry.utils.setProperty(castActivity, "uses.max", "" + actionData.value.perDay);
                     foundry.utils.setProperty(castActivity, "uses.recovery", [{period: "day", type: "recoverAll"}]);
@@ -624,7 +628,7 @@ export class sbiActor {
 
     setPerDay(actionData, itemData) {
         if (actionData.value.perDay) {
-            foundry.utils.setProperty(itemData, "system.uses.max", actionData.value.perDay);
+            foundry.utils.setProperty(itemData, "system.uses.max", String(actionData.value.perDay));
             foundry.utils.setProperty(itemData, "system.uses.recovery", [{period: "day", type: "recoverAll"}]);
             if (!Object.keys(itemData.system.activities ?? {}).length) {
                 let activityId = foundry.utils.randomID();
@@ -633,7 +637,7 @@ export class sbiActor {
             Object.values(itemData.system.activities).forEach(activity => {
                 foundry.utils.setProperty(itemData, `system.activities.${activity._id}.consumption.targets`, [{
                     type: "itemUses",
-                    value: 1
+                    value: "1"
                 }]);
             });
         }
@@ -685,7 +689,7 @@ export class sbiActor {
             Object.values(itemData.system.activities).forEach(activity => {
                 foundry.utils.setProperty(itemData, `system.activities.${activity._id}.consumption.targets`, [{
                     type: "itemUses",
-                    value: 1
+                    value: "1"
                 }]);
             });
             foundry.utils.setProperty(itemData, "system.uses", {max: "1", recovery: [{period: "recharge", formula: actionData.value.recharge}]});
@@ -700,20 +704,23 @@ export class sbiActor {
             }
             if (activityId) {
                 if (actionData.value.target.shape) {
-                    foundry.utils.setProperty(itemData, `system.activities.${activityId}.target.template.size`, actionData.value.target.range);
+                    foundry.utils.setProperty(itemData, `system.activities.${activityId}.target.template.size`, actionData.value.target.range == null ? "" : String(actionData.value.target.range));
                     foundry.utils.setProperty(itemData, `system.activities.${activityId}.target.template.type`, actionData.value.target.shape);
+                    if (actionData.value.target.width != null) {
+                        foundry.utils.setProperty(itemData, `system.activities.${activityId}.target.template.width`, String(actionData.value.target.width));
+                    }
                     foundry.utils.setProperty(itemData, `system.activities.${activityId}.target.template.units`, "ft");
                 } else {
                     if (actionData.value.spell) {
                         foundry.utils.setProperty(itemData, "system.target.affects.type", actionData.value.target.type);
-                        foundry.utils.setProperty(itemData, "system.target.affects.count", actionData.value.target.amount);
-                        foundry.utils.setProperty(itemData, "system.range.value", actionData.value.target.range);
+                        foundry.utils.setProperty(itemData, "system.target.affects.count", actionData.value.target.amount == null ? "" : String(actionData.value.target.amount));
+                        foundry.utils.setProperty(itemData, "system.range.value", actionData.value.target.range == null ? "" : String(actionData.value.target.range));
                         foundry.utils.setProperty(itemData, "system.range.units", "ft");
                     }
 
                     foundry.utils.setProperty(itemData, `system.activities.${activityId}.target.affects.type`, actionData.value.target.type);
-                    foundry.utils.setProperty(itemData, `system.activities.${activityId}.target.affects.count`, actionData.value.target.amount);
-                    foundry.utils.setProperty(itemData, `system.activities.${activityId}.range.value`, actionData.value.target.range);
+                    foundry.utils.setProperty(itemData, `system.activities.${activityId}.target.affects.count`, actionData.value.target.amount == null ? "" : String(actionData.value.target.amount));
+                    foundry.utils.setProperty(itemData, `system.activities.${activityId}.range.value`, actionData.value.target.range == null ? "" : String(actionData.value.target.range));
                     foundry.utils.setProperty(itemData, `system.activities.${activityId}.range.units`, "ft");
                 }
             }
@@ -1020,6 +1027,7 @@ export class sbiActor {
                     castActivity.spell = {
                         uuid: spellObj.uuid,
                         level: spellObj.level ?? spell.system.level,
+                        properties: spellcastingDetails.ignoredProperties ?? [],
                         spellbook: false, // Enabled after Actor creation so D&D5e creates the cached spell.
                     };
                 }
@@ -1043,7 +1051,7 @@ export class sbiActor {
                         if (useActivities) {
                             foundry.utils.setProperty(castActivity, "consumption.targets", [{
                                 type: "activityUses",
-                                value: 1
+                                value: "1"
                             }]);
                             foundry.utils.setProperty(castActivity, "uses.max", "" + spellObj.count);
                             foundry.utils.setProperty(castActivity, "uses.recovery", [{period: "day", type: "recoverAll"}]);
@@ -1055,7 +1063,7 @@ export class sbiActor {
                             }
                             foundry.utils.setProperty(spell, `system.activities.${mainSpellActivityId}.consumption.targets`, [{
                                 type: "itemUses",
-                                value: 1
+                                value: "1"
                             }]);
                             foundry.utils.setProperty(spell, "system.uses.max", "" + spellObj.count);
                             foundry.utils.setProperty(spell, "system.uses.recovery", [{period: "day", type: "recoverAll"}]);

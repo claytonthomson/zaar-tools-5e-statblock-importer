@@ -819,6 +819,23 @@ export class sbiParser {
 
         const spells = spellMatches.map(sm => ({name: sm.groups.spellName, level: sm.groups.spellLevel}));
         actionData.value.castSpells = spells;
+
+        const componentMatch = [...text.matchAll(sRegex.spellcastingDetails)]
+            .find(m => m.groups?.ignoredComponents);
+        if (componentMatch?.groups.ignoredComponents) {
+            const ignoredComponents = componentMatch.groups.ignoredComponents.toLowerCase();
+            const ignoredProperties = [];
+
+            if (ignoredComponents.includes("spell")) {
+                ignoredProperties.push("vocal", "somatic", "material");
+            } else {
+                if (ignoredComponents.includes("verbal")) ignoredProperties.push("vocal");
+                if (ignoredComponents.includes("somatic")) ignoredProperties.push("somatic");
+                if (ignoredComponents.includes("material")) ignoredProperties.push("material");
+            }
+
+            actionData.value.ignoredProperties = ignoredProperties;
+        }
     }
 
     // Example: The hound exhales a 15-foot cone of frost.
@@ -827,7 +844,10 @@ export class sbiParser {
         if (!match) return;
         actionData.value.target = {range: match.groups.areaRange || match.groups.range};
         if (match.groups.areaRange) {
-            actionData.value.target.shape = match.groups.shape;
+            actionData.value.target.shape = match.groups.shape?.toLowerCase();
+            if (match.groups.areaWidth) {
+                actionData.value.target.width = match.groups.areaWidth;
+            }
         } else {
             actionData.value.target.type = "creature";
             if (["one", "a"].includes(match.groups.targetsAmount)) {
@@ -986,6 +1006,20 @@ export class sbiParser {
             }
             if (match.groups.level) {
                 spellcastingDetails.level = match.groups.level;
+            }
+            if (match.groups.ignoredComponents) {
+                const ignoredComponents = match.groups.ignoredComponents.toLowerCase();
+                const ignoredProperties = [];
+
+                if (ignoredComponents.includes("spell")) {
+                    ignoredProperties.push("vocal", "somatic", "material");
+                } else {
+                    if (ignoredComponents.includes("verbal")) ignoredProperties.push("vocal");
+                    if (ignoredComponents.includes("somatic")) ignoredProperties.push("somatic");
+                    if (ignoredComponents.includes("material")) ignoredProperties.push("material");
+                }
+
+                spellcastingDetails.ignoredProperties = ignoredProperties;
             }
         }
 
