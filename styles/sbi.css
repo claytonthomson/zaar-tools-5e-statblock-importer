@@ -33,15 +33,31 @@ body {
 #sbi-bottom {
     display: flex;
     gap: 5px;
+    align-items: flex-end;
 }
 
-#sbi-import-text {
-    align-self: center;
+#sbi-import-options {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
 }
 
+#sbi-import-compendium-group {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+#sbi-import-compendium-group[hidden] {
+    display: none;
+}
+
+#sbi-import-destination,
+#sbi-import-compendium,
 #sbi-import-select {
-    width: 33%;
-    align-self: center;
+    min-width: 140px;
 }
 
 #sbi-import-button {
@@ -172,4 +188,11 @@ body {
 .sbi-dialog .line-text {
     display: block;
     font-style: italic;
+}
+#sbi-import-compendium-note {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: var(--font-size-12);
+    line-height: 1.35;
+    opacity: 0.8;
 }

@@ -3,15 +3,56 @@ export class sbiDnd5eActorBuilder {
         this.actor = actor;
     }
 
-    async create(selectedFolderId) {
+    async create(selectedFolderId, destinationOptions = {}) {
         await this.actor.updateActorData();
+
+        const destination = destinationOptions.destination ?? "world";
+        const actorClass = CONFIG.Actor.documentClass;
+
+        if (!actorClass.canUserCreate(game.user)) {
+            throw new Error("You do not have permission to create Actors.");
+        }
+
+        const operation = {};
+
+        if (destination === "world") {
+            if (selectedFolderId) {
+                const folder = game.folders.get(selectedFolderId);
+                if (!folder || folder.type !== "Actor") {
+                    throw new Error("The selected World Actor folder is no longer available.");
+                }
+            }
+        } else if (destination === "compendium") {
+            const packId = destinationOptions.packId;
+            const pack = packId ? game.packs.get(packId) : null;
+
+            if (!pack) {
+                throw new Error("The selected Actor compendium is no longer available.");
+            }
+            if (pack.documentName !== "Actor") {
+                throw new Error("The selected compendium does not contain Actors.");
+            }
+            if (pack.locked) {
+                throw new Error("The selected Actor compendium is locked.");
+            }
+            if (!pack.testUserPermission(game.user, "OWNER")) {
+                throw new Error("You no longer have sufficient permission to create Actors in the selected compendium.");
+            }
+            if (selectedFolderId && !pack.folders.has(selectedFolderId)) {
+                throw new Error("The selected compendium Actor folder is no longer available.");
+            }
+
+            operation.pack = pack.collection;
+        } else {
+            throw new Error(`Unknown Actor import destination: ${destination}`);
+        }
 
         const actorData = foundry.utils.deepClone(this.actor.actorData);
         actorData.folder = selectedFolderId;
         actorData.name = this.actor.name;
         actorData.type = "npc";
 
-        const actor5e = await CONFIG.Actor.documentClass.create(actorData);
+        const actor5e = await actorClass.create(actorData, operation);
         if (actor5e) {
             await this.actor.setSkills(actor5e);
 

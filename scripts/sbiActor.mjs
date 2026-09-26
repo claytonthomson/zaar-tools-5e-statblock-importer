@@ -843,9 +843,9 @@ export class sbiActor {
         }
     }
 
-    async createActor5e(selectedFolderId) {
+    async createActor5e(selectedFolderId, destinationOptions = {}) {
         const builder = new sbiDnd5eActorBuilder(this);
-        return builder.create(selectedFolderId);
+        return builder.create(selectedFolderId, destinationOptions);
     }
 
 

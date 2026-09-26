@@ -17,8 +17,26 @@
 Report any bugs using the module link, and add the statblock you were trying to import."></div>
     <section id="sbi-issues"></section>
     <section id="sbi-bottom">
-        <span id="sbi-import-text">Folder to import to:</span>
-        <select id="sbi-import-select"></select>
+        <div id="sbi-import-options">
+            <label for="sbi-import-destination">Destination:</label>
+            <select id="sbi-import-destination">
+                <option value="world" selected>World</option>
+                <option value="compendium">Compendium</option>
+            </select>
+
+            <div id="sbi-import-compendium-group" hidden>
+                <label for="sbi-import-compendium">Compendium:</label>
+                <select id="sbi-import-compendium" disabled></select>
+            </div>
+
+            <p id="sbi-import-compendium-note" hidden>
+                D&amp;D5e disables activity use for Actors stored in compendiums. Spells linked to Cast activities will not appear on the Spellbook tab while the Actor remains in the compendium. The spell data is still stored with the Actor and will appear normally when the Actor is imported into the World.
+            </p>
+
+            <label for="sbi-import-select">Folder:</label>
+            <select id="sbi-import-select"></select>
+        </div>
+
         <button id="sbi-import-button" type="button" data-action="import">Import</button>
     </section>
 </form>

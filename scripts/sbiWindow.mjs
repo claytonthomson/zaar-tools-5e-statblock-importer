@@ -47,6 +47,34 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
         sbiWindow.sbiInputWindowInstance.render(true);
     }
 
+    static getEligibleActorPacks() {
+        const actorClass = CONFIG.Actor.documentClass;
+
+        if (!actorClass.canUserCreate(game.user)) return [];
+
+        return [...game.packs.values()]
+            .filter(pack =>
+                pack.documentName === "Actor"
+                && !pack.locked
+                && pack.testUserPermission(game.user, "OWNER")
+            )
+            .sort((a, b) => a.title.localeCompare(b.title));
+    }
+
+    static getFolderOptions(folders, rootLabel = "") {
+        return [...folders]
+            .map(folder => {
+                const ancestors = [...folder.ancestors].reverse();
+                const parts = [
+                    ...(rootLabel ? [rootLabel] : []),
+                    ...ancestors.map(ancestor => ancestor.name),
+                    folder.name
+                ];
+                return { id: folder.id, label: parts.join(" / ") };
+            })
+            .sort((a, b) => a.label.localeCompare(b.label));
+    }
+
     _onRender(context, options) {
         const input = document.getElementById("sbi-input");
 
@@ -91,19 +119,59 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
             sbiUtils.insertTextAtSelection(text);
         });
 
+        const destinationSelect = document.getElementById("sbi-import-destination");
+        const compendiumGroup = document.getElementById("sbi-import-compendium-group");
+        const compendiumSelect = document.getElementById("sbi-import-compendium");
+        const compendiumNote = document.getElementById("sbi-import-compendium-note");
         const folderSelect = document.getElementById("sbi-import-select");
 
-        // Add a default option.
-        folderSelect.add(new Option("None", ""));
+        const populateFolders = (folders, rootLabel = "") => {
+            folderSelect.replaceChildren();
+            folderSelect.add(new Option("Root", ""));
 
-        const actorFolders = [...game.folders]
-            .filter(f => f.type === "Actor")
-            .map(f => ({ "name": f.name, "id": f._id }));
+            for (const folder of sbiWindow.getFolderOptions(folders, rootLabel)) {
+                folderSelect.add(new Option(folder.label, folder.id));
+            }
+        };
 
-        // Add the available folders.
-        for (const folder of actorFolders) {
-            folderSelect.add(new Option(folder.name, folder.id));
-        }
+        const populateCompendiums = () => {
+            compendiumSelect.replaceChildren();
+
+            const packs = sbiWindow.getEligibleActorPacks();
+            if (!packs.length) {
+                compendiumSelect.add(new Option("No eligible Actor compendiums", ""));
+                compendiumSelect.disabled = true;
+                return;
+            }
+
+            for (const pack of packs) {
+                compendiumSelect.add(new Option(pack.title, pack.collection));
+            }
+            compendiumSelect.disabled = false;
+        };
+
+        const updateDestination = () => {
+            const isCompendium = destinationSelect.value === "compendium";
+            compendiumGroup.hidden = !isCompendium;
+            compendiumNote.hidden = !isCompendium;
+
+            if (isCompendium) {
+                populateCompendiums();
+                const pack = game.packs.get(compendiumSelect.value);
+                populateFolders(pack?.folders ?? [], pack?.title ?? "");
+            } else {
+                compendiumSelect.disabled = true;
+                populateFolders(game.folders.filter(folder => folder.type === "Actor"));
+            }
+        };
+
+        destinationSelect.addEventListener("change", updateDestination);
+        compendiumSelect.addEventListener("change", () => {
+            const pack = game.packs.get(compendiumSelect.value);
+            populateFolders(pack?.folders ?? [], pack?.title ?? "");
+        });
+
+        updateDestination();
 
         ["blur", "input", "paste"].forEach(eventType => {
             input.addEventListener(eventType, (e) => {
@@ -328,12 +396,23 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
 
     static async import() {
         sbiUtils.log("Clicked import button");
+
+        const destinationSelect = document.getElementById("sbi-import-destination");
+        const compendiumSelect = document.getElementById("sbi-import-compendium");
         const folderSelect = document.getElementById("sbi-import-select");
-        const selectedFolderId = folderSelect.options[folderSelect.selectedIndex].value ?? undefined;
+
+        const destination = destinationSelect.value;
+        const selectedFolderId = folderSelect.value || undefined;
+        const destinationOptions = { destination };
+
+        if (destination === "compendium") {
+            destinationOptions.packId = compendiumSelect.value || undefined;
+        }
+
         const parseResult = sbiWindow.parse();
         if (parseResult?.actor) {
             try {
-                const { actor5e, importIssues } = await parseResult.actor.createActor5e(selectedFolderId);
+                const { actor5e, importIssues } = await parseResult.actor.createActor5e(selectedFolderId, destinationOptions);
                 document.querySelectorAll(".sbi-issue").forEach(i => i.remove());
                 sbiWindow.processIssues(importIssues);
                 // Open the sheet.
