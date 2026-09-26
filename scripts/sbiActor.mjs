@@ -172,7 +172,7 @@ export class sbiActor {
             const matchingImage = await sUtils.getImgFromPackItemAsync(itemData.name.toLowerCase());
             if (matchingImage) itemData.img = matchingImage;
             
-            this.setAttackOrSave(actionData, itemData);
+            await this.setAttackOrSave(actionData, itemData);
 
             if (Object.keys(itemData.system.activities ?? {}).length === 0) {
                 let activityId = foundry.utils.randomID();
@@ -194,8 +194,12 @@ export class sbiActor {
             if (itemData.type === "weapon") {
                 foundry.utils.setProperty(itemData, "system.identified", true);
                 foundry.utils.setProperty(itemData, "system.equipped", true);
-                foundry.utils.setProperty(itemData, "system.attunement", "required");
-                foundry.utils.setProperty(itemData, "system.attuned", true);
+                if (foundry.utils.getProperty(itemData, "system.attunement") === undefined) {
+                    foundry.utils.setProperty(itemData, "system.attunement", "");
+                }
+                if (foundry.utils.getProperty(itemData, "system.attuned") === undefined) {
+                    foundry.utils.setProperty(itemData, "system.attuned", false);
+                }
                 foundry.utils.setProperty(itemData, "system.proficient", 1);
                 foundry.utils.setProperty(itemData, "system.quantity", 1);
             }
@@ -263,7 +267,7 @@ export class sbiActor {
                 const matchingImage = await sUtils.getImgFromPackItemAsync(itemData.name.toLowerCase());
                 if (matchingImage) itemData.img = matchingImage;
 
-                this.setAttackOrSave(actionData, itemData);
+                await this.setAttackOrSave(actionData, itemData);
                 this.setRecharge(actionData, itemData);
                 await this.setCastSpells(actionData, itemData);
 
@@ -292,7 +296,7 @@ export class sbiActor {
             itemData.type = "feat";
 
             foundry.utils.setProperty(itemData, "system.description.value", description);
-            this.setAttackOrSave(actionData, itemData);
+            await this.setAttackOrSave(actionData, itemData);
 
             let activationType = null;
 
@@ -322,7 +326,7 @@ export class sbiActor {
         }
     }
 
-    setAttackOrSave(actionData, itemData) {
+    async setAttackOrSave(actionData, itemData) {
         let attackActivityId, saveActivityId;
         let condition = actionData.value.attack?.condition || actionData.value.save?.condition;
         let effect;
@@ -343,6 +347,36 @@ export class sbiActor {
 
             attackActivityId = foundry.utils.randomID();
             foundry.utils.setProperty(itemData, "system.type.value", "natural");
+
+            const sourceWeapon = await sUtils.getItemFromPacksAsync(itemData.name, "weapon");
+            if (sourceWeapon) {
+                foundry.utils.setProperty(
+                    itemData,
+                    "system.type.value",
+                    sourceWeapon.system.type?.value ?? "natural"
+                );
+                foundry.utils.setProperty(
+                    itemData,
+                    "system.type.baseItem",
+                    sourceWeapon.system.type?.baseItem ?? ""
+                );
+
+                if (sourceWeapon.system.mastery) {
+                    foundry.utils.setProperty(itemData, "system.mastery", sourceWeapon.system.mastery);
+                }
+
+                foundry.utils.setProperty(
+                    itemData,
+                    "system.attunement",
+                    sourceWeapon.system.attunement ?? ""
+                );
+                foundry.utils.setProperty(
+                    itemData,
+                    "system.attuned",
+                    sourceWeapon.system.attuned ?? false
+                );
+            }
+
             foundry.utils.setProperty(itemData, `system.activities.${attackActivityId}`, {
                 _id: attackActivityId, type: "attack", activation: {type: "action", value: 1},
             });
@@ -504,7 +538,7 @@ export class sbiActor {
             itemData.type = "feat";
 
             foundry.utils.setProperty(itemData, "system.description.value", description);
-            this.setAttackOrSave(featureData, itemData);
+            await this.setAttackOrSave(featureData, itemData);
 
             if (nameLower.startsWith("legendary resistance")) {
                 // Lair Actions are often not included in the statblock itself. We check the legendary resistance description for lair mentions
@@ -770,8 +804,6 @@ export class sbiActor {
             if (item) {
                 item.system.equipped = true;
                 item.system.proficient = 1;
-                item.system.attunement = "required";
-                item.system.attuned = true;
                 item.system.quantity = gearItem.quantity;
                 this.addItem(item);
             }
