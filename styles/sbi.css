@@ -9,34 +9,34 @@ body {
     }
 }
 
-#sbi-window .window-content > form {
+.sbi-window .window-content > form {
     display: flex;
     flex-direction: column;
     height: 100%;
 }
 
-#sbi-top label {
+.sbi-top label {
     flex: 0;
     flex-basis: 80px;
 }
 
-#sbi-top .form-fields {
+.sbi-top .form-fields {
     flex: 1;
     justify-content: flex-start;
 }
 
-#sbi-main-button {
+.sbi-main-button {
     width: 97%;
     height: 28px;
 }
 
-#sbi-bottom {
+.sbi-bottom {
     display: flex;
     gap: 5px;
     align-items: flex-end;
 }
 
-#sbi-import-options {
+.sbi-import-options {
     display: flex;
     flex: 1;
     flex-wrap: wrap;
@@ -44,28 +44,28 @@ body {
     align-items: center;
 }
 
-#sbi-import-compendium-group {
+.sbi-import-compendium-group {
     display: flex;
     gap: 5px;
     align-items: center;
 }
 
-#sbi-import-compendium-group[hidden] {
+.sbi-import-compendium-group[hidden] {
     display: none;
 }
 
-#sbi-import-destination,
-#sbi-import-compendium,
-#sbi-import-select {
+.sbi-import-destination,
+.sbi-import-compendium,
+.sbi-import-select {
     min-width: 140px;
 }
 
-#sbi-import-button {
+.sbi-import-button {
     width: 33%;
     margin-left: auto;
 }
 
-#sbi-input {
+.sbi-input {
     margin-bottom: 5px;
     overflow: auto;
     border: 1px solid gray;
@@ -76,18 +76,18 @@ body {
     position: relative;
 }
 
-#sbi-input:empty::before {
+.sbi-input:empty::before {
     content: attr(data-placeholder);
     color: gray;
 }
 
-#sbi-input .block-container {
+.sbi-input .block-container {
     position: relative;
     border-top: 1px solid rgba(128, 128, 128, 0.5);
     padding: 8px 0;
 }
 
-#sbi-input .block-container::before {
+.sbi-input .block-container::before {
     content: attr(data-block-name);
     position: absolute;
     font-size: smaller;
@@ -97,19 +97,19 @@ body {
     text-align: right;
 }
 
-#sbi-input .block-container.drag-over {
+.sbi-input .block-container.drag-over {
     background-color: var(--line-hover-bg-color);
 }
 
-#sbi-input .line-container {
+.sbi-input .line-container {
     cursor: grab;
 }
 
-#sbi-input .line-container:hover {
+.sbi-input .line-container:hover {
     background-color: var(--line-hover-bg-color);
 }
 
-#sbi-input span.hint::before {
+.sbi-input span.hint::before {
     content: 'Hint: ' attr(data-block-name);
     font-size: smaller;
     font-weight: bold;
@@ -121,44 +121,22 @@ body {
     cursor: pointer;
 }
 
-#sbi-input span {
+.sbi-input span {
     position: relative;
     cursor: text;
 }
 
-#sbi-input span span.matched {
+.sbi-input span span.matched {
     display: inline;
     text-decoration: underline;
     color: var(--matched-color);
 }
 
-#sbi-input span span.matched:hover {
+.sbi-input span span.matched:hover {
     color: var(--matched-hover-color);
 }
 
-#sbi-tooltip {
-    visibility: hidden;
-    min-width: 120px;
-    background-color: black;
-    color: #fff;
-    text-align: center;
-    border-radius: 6px;
-    padding: 6px 8px;
-    position: absolute;
-}
-
-#sbi-tooltip::after {
-    content: "";
-    position: absolute;
-    top: 50%;
-    right: 100%;
-    margin-top: -5px;
-    border-width: 5px;
-    border-style: solid;
-    border-color: transparent black transparent transparent;
-}
-
-#sbi-compendium-options-menu {
+.sbi-options-menu {
     .container {
         display: flex;
         & > * {
@@ -181,7 +159,7 @@ body {
     }
 }
 
-#sbi-compendium-options-menu .form-group label:hover {
+.sbi-options-menu .form-group label:hover {
     cursor: move;
 }
 
@@ -189,7 +167,7 @@ body {
     display: block;
     font-style: italic;
 }
-#sbi-import-compendium-note {
+.sbi-import-compendium-note {
     flex-basis: 100%;
     margin: 0;
     font-size: var(--font-size-12);

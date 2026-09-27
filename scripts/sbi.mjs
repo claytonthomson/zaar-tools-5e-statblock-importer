@@ -18,12 +18,12 @@ Hooks.on("init", () => {
 
 Hooks.on("renderActorDirectory", (app, html, data) => {
     html = html instanceof jQuery ? html.get(0) : html;
-    let importButton = html.querySelector("#sbi-main-button");
+    let importButton = html.querySelector(".sbi-main-button");
     if (game.user.hasPermission("ACTOR_CREATE") && !importButton) {
         sbiUtils.log("Rendering SBI button");
         importButton = document.createElement("button");
-        importButton.id = "sbi-main-button";
-        importButton.setAttribute("type", "button")
+        importButton.classList.add("sbi-main-button");
+        importButton.setAttribute("type", "button");
         importButton.innerHTML = `<i class="fas fa-file-import"></i>Import Statblock`;
         importButton.addEventListener("click", () => {
             sbiUtils.log("SBI button clicked");

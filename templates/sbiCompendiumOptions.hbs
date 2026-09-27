@@ -2,22 +2,22 @@
     <div class="container">
         <fieldset>
             <legend>Choose Spell Compendiums</legend>
-            <div id="sbi-spell-compendiums">
+            <div data-sbi-role="spell-compendiums">
             {{#each compendiums.spells}}
                 <div class="form-group">
                     <input type="checkbox" data-id="{{this.collection}}" {{#if this.active}}checked{{/if}} {{#if this.disabled}}disabled{{/if}}>
-                    <label for="{{this.collection}}" data-tooltip="{{this.collection}}">{{this.title}}</label>
+                    <label for="{{this.collection}}" data-tooltip="{{this.collection}}">{{this.label}}</label>
                 </div>
             {{/each}}
             </div>
         </fieldset>
         <fieldset>
             <legend>Choose Item Search Compendiums</legend>
-            <div id="sbi-item-compendiums">
+            <div data-sbi-role="item-compendiums">
             {{#each compendiums.items}}
                 <div class="form-group">
                     <input type="checkbox" data-id="{{this.collection}}" {{#if this.active}}checked{{/if}} {{#if this.disabled}}disabled{{/if}}>
-                    <label for="{{this.collection}}" data-tooltip="{{this.collection}}">{{this.title}}</label>
+                    <label for="{{this.collection}}" data-tooltip="{{this.collection}}">{{this.label}}</label>
                 </div>
             {{/each}}
             </div>

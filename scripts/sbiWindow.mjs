@@ -14,7 +14,7 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     static DEFAULT_OPTIONS = {
-        id: "sbi-window",
+        id: "sbi-window-{id}",
         position: { width: 800, height: 640 },
         classes: ["sbi-window"],
         window: {
@@ -22,9 +22,9 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
             title: "5e Statblock Importer"
         },
         actions: {
-            parse: sbiWindow.parse,
-            reset: sbiWindow.reset,
-            import: sbiWindow.import,
+            parse: sbiWindow._onParse,
+            reset: sbiWindow._onReset,
+            import: sbiWindow._onImport,
             compendiumOptions: sbiWindow.openCompendiumOptions,
         }
     };
@@ -37,14 +37,32 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
 
     static openCompendiumOptions() {
         const menu = new CompendiumOptionsMenu();
-        menu.render(true);
+        return menu.render({ force: true });
     }
 
-    static sbiInputWindowInstance = {};
-
     static async renderWindow() {
-        sbiWindow.sbiInputWindowInstance = new sbiWindow();
-        sbiWindow.sbiInputWindowInstance.render(true);
+        const existing = [...foundry.applications.instances.values()]
+            .find(app => app instanceof sbiWindow);
+
+        if (existing) {
+            if (existing.minimized) await existing.maximize();
+            existing.bringToFront();
+            return existing;
+        }
+
+        return new sbiWindow().render({ force: true });
+    }
+
+    static _onParse() {
+        return this.parse();
+    }
+
+    static _onReset() {
+        return this.reset();
+    }
+
+    static _onImport() {
+        return this.import();
     }
 
     static getEligibleActorPacks() {
@@ -75,8 +93,10 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
             .sort((a, b) => a.label.localeCompare(b.label));
     }
 
-    _onRender(context, options) {
-        const input = document.getElementById("sbi-input");
+    async _onRender(context, options) {
+        await super._onRender(context, options);
+
+        const input = this.element.querySelector('[data-sbi-role="input"]');
 
         input.addEventListener("keydown", e => {
             const selectionRange = sbiUtils.getSelectionRange(input);
@@ -119,11 +139,11 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
             sbiUtils.insertTextAtSelection(text);
         });
 
-        const destinationSelect = document.getElementById("sbi-import-destination");
-        const compendiumGroup = document.getElementById("sbi-import-compendium-group");
-        const compendiumSelect = document.getElementById("sbi-import-compendium");
-        const compendiumNote = document.getElementById("sbi-import-compendium-note");
-        const folderSelect = document.getElementById("sbi-import-select");
+        const destinationSelect = this.element.querySelector('[data-sbi-role="destination"]');
+        const compendiumGroup = this.element.querySelector('[data-sbi-role="compendium-group"]');
+        const compendiumSelect = this.element.querySelector('[data-sbi-role="compendium"]');
+        const compendiumNote = this.element.querySelector('[data-sbi-role="compendium-note"]');
+        const folderSelect = this.element.querySelector('[data-sbi-role="folder"]');
 
         const populateFolders = (folders, rootLabel = "") => {
             folderSelect.replaceChildren();
@@ -175,14 +195,22 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
 
         ["blur", "input", "paste"].forEach(eventType => {
             input.addEventListener(eventType, (e) => {
-                if (document.getElementById("sbi-import-autoparse").checked && !this.pauseAutoParse) {
+                if (this.element.querySelector('[data-sbi-role="autoparse"]').checked && !this.pauseAutoParse) {
                     if (this.keyupParseTimeout) clearTimeout(this.keyupParseTimeout);
-                    this.keyupParseTimeout = setTimeout(sbiWindow.parse, e.type == "input" ? 1000 : 0);
+                    this.keyupParseTimeout = setTimeout(() => this.parse(), e.type == "input" ? 1000 : 0);
                 }
             });
         });
 
         sbiUtils.log("Listeners activated");
+    }
+
+    async _preClose(options) {
+        if (this.keyupParseTimeout) {
+            clearTimeout(this.keyupParseTimeout);
+            this.keyupParseTimeout = null;
+        }
+        await super._preClose(options);
     }
 
     static getBlockSelectInputGroup(selected) {        
@@ -206,8 +234,8 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
         return content;
     }
 
-    static hintDialog(lineElement) {
-        sbiWindow.sbiInputWindowInstance.pauseAutoParse = true;
+    hintDialog(lineElement) {
+        this.pauseAutoParse = true;
 
         const lineText = lineElement.innerText;
         const content = `<q class="line-text">${lineText}</q>` + sbiWindow.getBlockSelectInputGroup(lineElement.getAttribute("data-hint"));
@@ -223,9 +251,9 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
                 callback: (event, button, dialog) => new FormDataExtended(button.form).object
             }
         }).then(hint => {
+            this.pauseAutoParse = false;
             if (hint) {
                 hint = hint.hint;
-                sbiWindow.sbiInputWindowInstance.pauseAutoParse = false;
                 if (!hint) {
                     lineElement.removeAttribute("data-hint");
                     lineElement.querySelector(".hint").remove?.();
@@ -234,13 +262,13 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
                     lineElement.querySelector(".hint")?.setAttribute("data-block-id", hint);
                     lineElement.querySelector(".hint")?.setAttribute("data-block-name", Blocks[hint].name);
                 }
-                sbiWindow.parse();
+                this.parse();
             }
         });
     }
 
-    static parse() {
-        const input = document.getElementById("sbi-input");
+    parse() {
+        const input = this.element.querySelector('[data-sbi-role="input"]');
 
         if (!input.innerText.trim().length) return;
 
@@ -307,7 +335,7 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
                 divLine.setAttribute("draggable", true);
                 divLine.appendChild(spanLine);
                 divLine.addEventListener("contextmenu", (evt) => {
-                    sbiWindow.hintDialog(evt.target.closest(".line-container"));
+                    this.hintDialog(evt.target.closest(".line-container"));
                 });
 
                 if (hint) {
@@ -317,7 +345,7 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
                     hintSpan.setAttribute("data-block-id", hint);
                     hintSpan.setAttribute("data-block-name", Blocks[hint].name);
                     hintSpan.addEventListener("click", (evt) => {
-                        sbiWindow.hintDialog(evt.target.closest("[data-hint]"));
+                        this.hintDialog(evt.target.closest("[data-hint]"));
                     });
                     divLine.appendChild(hintSpan);
                 }
@@ -373,8 +401,8 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
                     const blockId = evt.target.closest(".block-container").getAttribute("data-block-id");
                     if (blockId !== originalBlockId) {
                         input.querySelector(`.line-container[data-line="${lineNumber}"]`).setAttribute("data-hint", blockId);
-                        if (document.getElementById("sbi-import-autoparse").checked) {
-                            sbiWindow.parse();
+                        if (this.element.querySelector('[data-sbi-role="autoparse"]').checked) {
+                            this.parse();
                         }
                     }
                 });
@@ -389,17 +417,17 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
         }
     }
 
-    static reset() {
-        document.getElementById("sbi-input").innerHTML = "";
-        document.getElementById("sbi-issues").innerHTML = "";
+    reset() {
+        this.element.querySelector('[data-sbi-role="input"]').innerHTML = "";
+        this.element.querySelector('[data-sbi-role="issues"]').innerHTML = "";
     }
 
-    static async import() {
+    async import() {
         sbiUtils.log("Clicked import button");
 
-        const destinationSelect = document.getElementById("sbi-import-destination");
-        const compendiumSelect = document.getElementById("sbi-import-compendium");
-        const folderSelect = document.getElementById("sbi-import-select");
+        const destinationSelect = this.element.querySelector('[data-sbi-role="destination"]');
+        const compendiumSelect = this.element.querySelector('[data-sbi-role="compendium"]');
+        const folderSelect = this.element.querySelector('[data-sbi-role="folder"]');
 
         const destination = destinationSelect.value;
         const selectedFolderId = folderSelect.value || undefined;
@@ -409,29 +437,29 @@ export class sbiWindow extends HandlebarsApplicationMixin(ApplicationV2) {
             destinationOptions.packId = compendiumSelect.value || undefined;
         }
 
-        const parseResult = sbiWindow.parse();
+        const parseResult = this.parse();
         if (parseResult?.actor) {
             try {
                 const { actor5e, importIssues } = await parseResult.actor.createActor5e(selectedFolderId, destinationOptions);
-                document.querySelectorAll(".sbi-issue").forEach(i => i.remove());
-                sbiWindow.processIssues(importIssues);
+                this.element.querySelectorAll(".sbi-issue").forEach(i => i.remove());
+                this.processIssues(importIssues);
                 // Open the sheet.
-                actor5e.sheet.render(true);
+                actor5e.sheet.render({ force: true });
             } catch (error) {
                 sbiUtils.error("An error has occured (" + error.stack.split("\n", 1).join("") + "). Please report it using the module link so it can get fixed.", error);
             }
         }
     }
 
-    static addIssueMessage(content) {
+    addIssueMessage(content) {
         const issueElement = document.createElement("div");
         issueElement.classList.add("sbi-issue");
         issueElement.innerHTML = content;
-        document.getElementById("sbi-issues").appendChild(issueElement);
+        this.element.querySelector('[data-sbi-role="issues"]').appendChild(issueElement);
         sbiUtils.warn(issueElement.innerText);
     }
 
-    static processIssues(issues) {
+    processIssues(issues) {
         let message;
         if (issues.missingSpells?.length) {
             message = "Some spells could not be found in your compendiums and have been created as placeholders: " + issues.missingSpells.join(", ");

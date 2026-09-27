@@ -1,42 +1,42 @@
 <form class="standard-form">
-    <section id="sbi-top">
+    <section class="sbi-top">
         <div class="form-group">
-            <label for="sbi-import-autoparse">Auto parse:</label>
+            <label>Auto parse:</label>
             <div class="form-fields">
-                <input id="sbi-import-autoparse" type="checkbox" checked="checked" />
-                <button id="sbi-import-parse" type="button" data-action="parse">Parse</button>
+                <input type="checkbox" checked="checked" data-sbi-role="autoparse" aria-label="Auto parse" />
+                <button type="button" data-action="parse">Parse</button>
             </div>
-            <button id="sbi-import-reset" type="button" data-action="reset">Reset</button>
+            <button type="button" data-action="reset">Reset</button>
         </div>
     </section>
-    <div id="sbi-input" contenteditable="true" data-placeholder="Usage:
+    <div class="sbi-input" data-sbi-role="input" contenteditable="true" data-placeholder="Usage:
 - Paste the full statblock text into this box. It should follow WotC formatting to be imported correctly. Markdown is supported too.
 - You can click on the &quot;Parse&quot; button above to preview all the information that the module is able to parse from the text (the &quot;Auto Parse&quot; checkbox will automatically do that for you after every change).
 - If you need to, you can edit the text here to fix any errors. The &quot;Import&quot; button below will parse and create the actor based on the current text.
 
 Report any bugs using the module link, and add the statblock you were trying to import."></div>
-    <section id="sbi-issues"></section>
-    <section id="sbi-bottom">
-        <div id="sbi-import-options">
-            <label for="sbi-import-destination">Destination:</label>
-            <select id="sbi-import-destination">
+    <section class="sbi-issues" data-sbi-role="issues"></section>
+    <section class="sbi-bottom">
+        <div class="sbi-import-options">
+            <label>Destination:</label>
+            <select class="sbi-import-destination" data-sbi-role="destination" aria-label="Destination">
                 <option value="world" selected>World</option>
                 <option value="compendium">Compendium</option>
             </select>
 
-            <div id="sbi-import-compendium-group" hidden>
-                <label for="sbi-import-compendium">Compendium:</label>
-                <select id="sbi-import-compendium" disabled></select>
+            <div class="sbi-import-compendium-group" data-sbi-role="compendium-group" hidden>
+                <label>Compendium:</label>
+                <select class="sbi-import-compendium" data-sbi-role="compendium" aria-label="Compendium" disabled></select>
             </div>
 
-            <p id="sbi-import-compendium-note" hidden>
+            <p class="sbi-import-compendium-note" data-sbi-role="compendium-note" hidden>
                 D&amp;D5e disables activity use for Actors stored in compendiums. Spells linked to Cast activities will not appear on the Spellbook tab while the Actor remains in the compendium. The spell data is still stored with the Actor and will appear normally when the Actor is imported into the World.
             </p>
 
-            <label for="sbi-import-select">Folder:</label>
-            <select id="sbi-import-select"></select>
+            <label>Folder:</label>
+            <select class="sbi-import-select" data-sbi-role="folder" aria-label="Folder"></select>
         </div>
 
-        <button id="sbi-import-button" type="button" data-action="import">Import</button>
+        <button class="sbi-import-button" type="button" data-action="import">Import</button>
     </section>
 </form>

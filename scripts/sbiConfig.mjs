@@ -43,7 +43,19 @@ export function getPacks() {
 
     const compendiums = game.packs
         .filter(p => p.documentName === "Item")
-        .map(p => ({ collection: p.collection, title: p.title }));
+        .map(p => {
+            const { packageName, packageType } = p.metadata;
+            const packageTitle = packageType === "system"
+                ? game.system.title
+                : packageType === "module"
+                    ? game.modules.get(packageName)?.title ?? packageName
+                    : game.world.title;
+            return {
+                collection: p.collection,
+                title: p.title,
+                label: `${p.title} (${packageTitle})`
+            };
+        });
     const spellCompendiums = compendiums
         .map(p => {
             const settingInfo = compendiumsSetting.spells.find(s => s.collection === p.collection);
@@ -85,9 +97,14 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 export class CompendiumOptionsMenu extends HandlebarsApplicationMixin(ApplicationV2) {
 
+    constructor(options) {
+        super(options);
+        this.sortables = [];
+    }
+
     static DEFAULT_OPTIONS = {
         tag: "form",
-        id: "sbi-compendium-options-menu",
+        id: "sbi-compendium-options-menu-{id}",
         position: { width: 700, height: 700 },
         classes: ["sbi-options-menu"],
         window: {
@@ -117,19 +134,39 @@ export class CompendiumOptionsMenu extends HandlebarsApplicationMixin(Applicatio
         return {compendiums: getPacks()};
     }
 
-    _onRender(context, options) {
+    async _preRender(context, options) {
+        await super._preRender(context, options);
+        this._destroySortables();
+    }
+
+    async _onRender(context, options) {
+        await super._onRender(context, options);
+
         const sortableOptions = {
             animation: 150,
         };
-        const spellCompendiumsList = document.getElementById("sbi-spell-compendiums");
-        const spellsSortable = sortablejs.create(spellCompendiumsList, sortableOptions);
-        const itemCompendiumsList = document.getElementById("sbi-item-compendiums");
-        const itemSortable = sortablejs.create(itemCompendiumsList, sortableOptions);
+        const spellCompendiumsList = this.element.querySelector('[data-sbi-role="spell-compendiums"]');
+        const itemCompendiumsList = this.element.querySelector('[data-sbi-role="item-compendiums"]');
+
+        this.sortables = [
+            sortablejs.create(spellCompendiumsList, sortableOptions),
+            sortablejs.create(itemCompendiumsList, sortableOptions)
+        ];
+    }
+
+    _destroySortables() {
+        for (const sortable of this.sortables) sortable.destroy();
+        this.sortables = [];
+    }
+
+    async _preClose(options) {
+        this._destroySortables();
+        await super._preClose(options);
     }
 
     static confirm() {
         let compendiums = {spells: [], items: []};
-        const spellsList = document.getElementById("sbi-spell-compendiums");
+        const spellsList = this.element.querySelector('[data-sbi-role="spell-compendiums"]');
         compendiums.spells = [...spellsList.querySelectorAll("input")]
             .sort((s1, s2) => {
                 if (s1.checked === s2.checked) return 0;
@@ -141,7 +178,7 @@ export class CompendiumOptionsMenu extends HandlebarsApplicationMixin(Applicatio
                 active: el.checked,
                 priority: i
             }));
-        const itemsList = document.getElementById("sbi-item-compendiums");
+        const itemsList = this.element.querySelector('[data-sbi-role="item-compendiums"]');
         compendiums.items = [...itemsList.querySelectorAll("input")]
             .sort((s1, s2) => {
                 if (s1.checked === s2.checked) return 0;
