@@ -6,6 +6,7 @@ import { sbiDnd5eActorBuilder } from "./sbiDnd5eActorBuilder.mjs";
 
 export class sbiActor {
     #dnd5e = {};
+    #pendingCastSpells = new Map();
 
     constructor(name) {
         this.name = name;                           // string
@@ -55,6 +56,10 @@ export class sbiActor {
 
     get actorData() {
         return this.#dnd5e;
+    }
+
+    get pendingCastSpells() {
+        return this.#pendingCastSpells;
     }
 
     async updateActorData() {
@@ -586,23 +591,28 @@ export class sbiActor {
     async fetchSpellByName(spellName, useActivities) {
         let spell = await sUtils.getItemFromPacksAsync(spellName, "spell");
         if (!spell) {
-            this.importIssues.missingSpells.push(spellName);
-            const activityId = foundry.utils.randomID();
-            spell = {
-                name: spellName,
-                type: "spell",
-                system: {
-                    activities: {
-                        [activityId]: {_id: activityId, type: "utility", activation: {type: "action", value: 1}}
-                    }
-                }
-            };
+            if (!this.importIssues.missingSpells.includes(spellName)) {
+                this.importIssues.missingSpells.push(spellName);
+            }
 
-            if (useActivities) {
-                // We actually create the item so that it can be referenced correctly and displayed in the spellbook
-                const spellItem = await Item.create(spell);
-                spell = spellItem.toObject();
-                spell.uuid = spellItem.uuid;
+            spell = this.#dnd5e.items?.find(item => item.type === "spell" && item.name === spellName);
+            if (!spell) {
+                const activityId = foundry.utils.randomID();
+                spell = {
+                    name: spellName,
+                    type: "spell",
+                    system: {
+                        activities: {
+                            [activityId]: {_id: activityId, type: "utility", activation: {type: "action", value: 1}}
+                        }
+                    }
+                };
+
+                // Cast Activities need a stable spell document to reference. Queue missing
+                // spell placeholders on the Actor rather than creating orphan World Items.
+                if (useActivities) {
+                    this.addItem(spell);
+                }
             }
         }
         if (spell.system.source?.rules === "2014" && game.settings.get("dnd5e", "rulesVersion") !== "legacy") {
@@ -615,45 +625,193 @@ export class sbiActor {
         if (actionData.value.castSpells?.length) {
 
             let updatedDescription = itemData.system.description.value;
+            const resolvedSpellUuids = new Map();
+
+            // A feature with spell-slot groups behaves like traditional Spellcasting:
+            // its spells are embedded on the Actor so D&D5e can place them in the
+            // appropriate spell-slot sections. Other spell-bearing features use Cast
+            // Activities, except cantrips, which must be embedded so D&D5e can place
+            // them in the Cantrips spellbook section.
+            const useActivities = !actionData.value.castSpells.some(spellObj => spellObj.type === "slots");
+
+            if (!useActivities && actionData.value.spellcastingAbility) {
+                this.set5eProperty(
+                    "system.attributes.spellcasting",
+                    sUtils.convertToShortAbility(actionData.value.spellcastingAbility)
+                );
+            }
 
             for (const spellObj of actionData.value.castSpells || []) {
-                const spell = await this.fetchSpellByName(spellObj.name, true);
+                const useCastActivity = useActivities && spellObj.type !== "cantrip";
+                const spell = await this.fetchSpellByName(spellObj.name, useCastActivity);
 
                 const spellUuid = spell.sourceUuid ?? spell.uuid;
+                resolvedSpellUuids.set(spellObj.name.toLowerCase(), spellUuid);
 
                 if (spellUuid) {
                     updatedDescription = updatedDescription.replaceAll(spellObj.name, "<em>@UUID[" + spellUuid + "]</em>");
                 }
 
-                const castActivity = {
-                    _id: foundry.utils.randomID(),
-                    type: "cast",
-                    spell: {
-                        uuid: spellUuid,
-                        level: spellObj.level ?? spell.system.level,
-                        properties: actionData.value.ignoredProperties ?? [],
-                        spellbook: false, // this will be updated after the actor is created
+                let castActivity;
+                if (useCastActivity) {
+                    castActivity = {
+                        _id: foundry.utils.randomID(),
+                        type: "cast",
+                        spell: {
+                            uuid: spellUuid,
+                            level: spellObj.level ?? spell.system.level,
+                            properties: actionData.value.ignoredProperties ?? [],
+                            spellbook: false
+                        }
+                    };
+
+                    if (actionData.value.spellcastingAbility) {
+                        foundry.utils.setProperty(
+                            castActivity,
+                            "spell.ability",
+                            sUtils.convertToShortAbility(actionData.value.spellcastingAbility)
+                        );
                     }
-                };
-                if (actionData.value.perDay) {
+
+                    if (actionData.value.spellSaveDc) {
+                        foundry.utils.setProperty(castActivity, "spell.challenge", {
+                            override: true,
+                            save: String(actionData.value.spellSaveDc)
+                        });
+                    }
+
+                    if (!spellUuid) {
+                        castActivity.name = spellObj.name;
+                        this.#pendingCastSpells.set(castActivity._id, spellObj.name);
+                    }
+                }
+
+                if (spellObj.type === "slots") {
+                    const slotLevel = spellObj.groupLevel ?? spell.system.level;
+                    if (slotLevel !== undefined && slotLevel !== null) {
+                        this.set5eProperty(`system.spells.spell${slotLevel}.value`, spellObj.count);
+                        this.set5eProperty(`system.spells.spell${slotLevel}.override`, spellObj.count);
+                    }
+
+                    if (!useCastActivity) {
+                        if (spell.system.level === undefined && spellObj.groupLevel !== undefined) {
+                            foundry.utils.setProperty(spell, "system.level", spellObj.groupLevel);
+                        }
+                        foundry.utils.setProperty(spell, "system.method", "spell");
+                        foundry.utils.setProperty(spell, "system.prepared", 1);
+                    }
+                } else if (actionData.value.perDay) {
+                    if (useCastActivity) {
+                        foundry.utils.setProperty(castActivity, "consumption.targets", [{
+                            type: "activityUses",
+                            value: "1"
+                        }]);
+                        foundry.utils.setProperty(castActivity, "uses.max", "" + actionData.value.perDay);
+                        foundry.utils.setProperty(castActivity, "uses.recovery", [{period: "day", type: "recoverAll"}]);
+                    }
+                } else if (spellObj.type === "innate") {
+                    if (spellObj.count) {
+                        if (useCastActivity) {
+                            foundry.utils.setProperty(castActivity, "consumption.targets", [{
+                                type: "activityUses",
+                                value: "1"
+                            }]);
+                            foundry.utils.setProperty(castActivity, "uses.max", "" + spellObj.count);
+                            foundry.utils.setProperty(castActivity, "uses.recovery", [{period: "day", type: "recoverAll"}]);
+                        } else {
+                            let mainSpellActivityId = Object.values(spell.system.activities || {})[0]?._id;
+                            if (!mainSpellActivityId) {
+                                mainSpellActivityId = foundry.utils.randomID();
+                                foundry.utils.setProperty(
+                                    spell,
+                                    `system.activities.${mainSpellActivityId}`,
+                                    {_id: mainSpellActivityId, type: "utility", activation: {type: "action", value: 1}}
+                                );
+                            }
+                            foundry.utils.setProperty(spell, `system.activities.${mainSpellActivityId}.consumption.targets`, [{
+                                type: "itemUses",
+                                value: "1"
+                            }]);
+                            foundry.utils.setProperty(spell, "system.uses.max", "" + spellObj.count);
+                            foundry.utils.setProperty(spell, "system.uses.recovery", [{period: "day", type: "recoverAll"}]);
+                            foundry.utils.setProperty(spell, "system.method", "innate");
+                        }
+                    } else if (!useCastActivity) {
+                        foundry.utils.setProperty(spell, "system.method", "atwill");
+                    }
+                } else if (spellObj.type === "at will") {
+                    if (!useCastActivity) {
+                        foundry.utils.setProperty(spell, "system.method", "atwill");
+                    }
+                } else if (spellObj.type === "cantrip") {
+                    if (!useCastActivity) {
+                        if (spell.system.level === undefined) {
+                            foundry.utils.setProperty(spell, "system.level", 0);
+                        }
+                        foundry.utils.setProperty(spell, "system.method", "spell");
+                        foundry.utils.setProperty(spell, "system.prepared", 1);
+                    }
+                } else if (actionData.value.spellCharges && spellObj.type === "charges" && useCastActivity) {
                     foundry.utils.setProperty(castActivity, "consumption.targets", [{
-                        type: "activityUses",
-                        value: "1"
+                        type: "itemUses",
+                        value: String(spellObj.count)
                     }]);
-                    foundry.utils.setProperty(castActivity, "uses.max", "" + actionData.value.perDay);
-                    foundry.utils.setProperty(castActivity, "uses.recovery", [{period: "day", type: "recoverAll"}]);
                 }
-                let singleUtilityActivity;
-                if (Object.values(itemData.system.activities || {}).length === 1 && Object.values(itemData.system.activities)[0].type === "utility") {
-                    singleUtilityActivity = Object.values(itemData.system.activities)[0];
+
+                if (useCastActivity) {
+                    let singleUtilityActivity;
+                    if (Object.values(itemData.system.activities || {}).length === 1
+                        && Object.values(itemData.system.activities)[0].type === "utility") {
+                        singleUtilityActivity = Object.values(itemData.system.activities)[0];
+                    }
+
+                    if (singleUtilityActivity) {
+                        foundry.utils.setProperty(castActivity, "activation", singleUtilityActivity.activation);
+                        itemData.system.activities = {};
+                    }
+
+                    if (!Object.values(itemData.system?.activities || {}).find(a => a.name === spell.name)) {
+                        foundry.utils.setProperty(itemData, `system.activities.${castActivity._id}`, castActivity);
+                    }
+                } else if (!this.#dnd5e.items?.find(i => i.name === spell.name)) {
+                    this.addItem(spell);
                 }
-                if (singleUtilityActivity) {
-                    foundry.utils.setProperty(castActivity, "activation", singleUtilityActivity.activation);
-                    itemData.system.activities = {};
+            }
+
+            if (actionData.value.spellCharges) {
+                foundry.utils.setProperty(itemData, "system.uses.max", String(actionData.value.spellCharges.max));
+
+                if (actionData.value.spellCharges.recovery) {
+                    foundry.utils.setProperty(
+                        itemData,
+                        "system.uses.recovery",
+                        [actionData.value.spellCharges.recovery]
+                    );
                 }
-                if (!Object.values(itemData.system?.activities || {}).find(a => a.name === spell.name)) {
-                    foundry.utils.setProperty(itemData, `system.activities.${castActivity._id}`, castActivity);
+            }
+
+            if (actionData.value.spellInfo?.length > 1) {
+                let description = actionData.value.spellInfo[0].value.trim();
+                const titlePrefix = `${actionData.name}.`;
+                if (description.toLowerCase().startsWith(titlePrefix.toLowerCase())) {
+                    description = description.slice(titlePrefix.length).trim();
                 }
+
+                const descriptionLines = [];
+                if (description) {
+                    descriptionLines.push(this.enrichDescription(description));
+                }
+
+                for (const spellGroup of actionData.value.spellInfo.slice(1)) {
+                    const spellDescriptions = spellGroup.value.map(spell => {
+                        const uuid = resolvedSpellUuids.get(spell.name.toLowerCase());
+                        const levelDescription = spell.level ? ` (level ${spell.level} version)` : "";
+                        return `<em>${uuid ? `@UUID[${uuid}]` : spell.name}</em>${levelDescription}`;
+                    });
+                    descriptionLines.push(`<p><strong>${spellGroup.name}:</strong> ${spellDescriptions.join(", ")}</p>`);
+                }
+
+                updatedDescription = sUtils.combineToString(descriptionLines);
             }
 
             foundry.utils.setProperty(itemData, "system.description.value", updatedDescription);
@@ -1062,6 +1220,10 @@ export class sbiActor {
                         properties: spellcastingDetails.ignoredProperties ?? [],
                         spellbook: false, // Enabled after Actor creation so D&D5e creates the cached spell.
                     };
+                    if (!spellObj.uuid) {
+                        castActivity.name = spellObj.name;
+                        this.#pendingCastSpells.set(castActivity._id, spellObj.name);
+                    }
                 }
 
                 if (spellObj.type === "slots") {

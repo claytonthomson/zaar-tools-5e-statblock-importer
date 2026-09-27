@@ -111,11 +111,13 @@ export class sbiRegex {
     static legendaryActionCount = /take\s(?<count>\d+)\slegendary|legendary\saction\suses:\s?(?<uses>\d+)(?:\s?\((?<lairUses>\d+)\sin\slair\))?\s*\./idg;
     static lairInitiativeCount = /initiative\scount\s(?<initiativeCount>\d+)/idg;
     
-    static spellGroup = /(?<spellGroup>(?:cantrips|at.will|(?<level>\d+)(?:st|nd|rd|th)\slevel|(?<perDay>\d+)\/day)\s?(?:each)?(?:\s?\((?:(?<slots>\d+)\sslots?|at.will)\))?):\s?/idg;
-    static spellName = /(?<=^|,)\s*[*\s]*(?<spellName>[^\n.,:]+?)(?:\s\(level\s(?<spellLevel>\d+)[^)]*\))?(?:\s\((?<affectsAC>included in ac)\))?[*\s]*(\s[ABR]|\s?\+)?(?:\s*\(.*?\)\s*)?(?=,|[\s.:]*$)/idg;
+    static spellGroup = /(?<spellGroup>(?:cantrips|at.will|(?<level>\d+)(?:st|nd|rd|th)\slevel|(?<perDay>\d+)\/day|(?<charges>\d+)\s+charges?)\s?(?:each)?(?:\s?\((?:(?<slots>\d+)\sslots?|at.will)\))?):\s?/idg;
+    static spellName = /(?<=^|,)\s*[*\s]*(?<spellName>[^\n.,:]+?)(?:\s\(level\s(?<spellLevel>\d+)[^)]*\))?(?:\s\((?<affectsAC>included in ac)\))?[*\s]*(\s[ABR]|\s?\+)?(?:\s*\(.*?\)\s*)?(?=,|[ \t.:]*(?:\n|$))/idg;
     
     static spellLine = /(at-will|cantrips|1st|2nd|3rd|4th|5th|6th|7th|8th|9th)[\w\s\(\)-]*:/ig;
-    static spellInnateLine = /at will:|\d\/day( each)?/ig;
+    static spellInnateLine = /at will:|\d+\/day( each)?|\d+\s+charges?\s*(?:each)?:/ig;
+    static chargePool = /\bhas\s+(?<max>\d+)\s+charges?\b/idg;
+    static chargeRecovery = /\bregains?\s+(?:(?<all>all)(?:\s+expended)?|(?<formula>\d+d\d+(?:\s*[+\-]\s*\d+)?|\d+))\s+charges?\s+(?:(?:daily\s+)?at\s+(?<time>dawn|dusk)|(?<daily>daily))\b/idg;
     static spellInnateSingle = /(?<perDay>\d+)\/day.*innately\scast\s(?<spellName>[\w|\s]+)(\s\(.+\))?,/idg;
     static spellActionTitle = /\d+\/day(?:[,;]\s?(?<spellLevel>\d)(?:st|nd|rd|th)[-\s]level\sspell)?(?:[,;]\s?(?<concentration>concentration))?/idg;
     static range = /range\s(?<near>\d+)(\/(?<far>\d+))?\s?(f(ee|oo)?t|'|’)/idg;

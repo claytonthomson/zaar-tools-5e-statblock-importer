@@ -689,6 +689,7 @@ export class sbiParser {
                 this.parseRecharge(actionData);
                 this.parseTarget(actionData);
                 this.parseMajorFeatureInfo(actionData);
+                this.parseSpellGroups(actionData);
                 this.parseSpellAction(actionData);
                 this.parseCastAction(actionData);
             }
@@ -798,6 +799,64 @@ export class sbiParser {
         actionData.value.recharge = parseInt(match.groups.recharge);
     }
 
+    // Parse structured spell lists on any feature or action, regardless of its name.
+    static parseSpellGroups(actionData) {
+        const lines = Array.isArray(actionData.value.lines) ? actionData.value.lines : [actionData.value.lines];
+        const text = sUtils.combineToString(lines.map(l => l.line));
+
+        // Avoid treating unrelated "At Will" groupings as spell lists.
+        if (!/\b(?:spell|spells|spellcasting|casts?|innately cast)\b/i.test(text)) return;
+        if (![...text.matchAll(sRegex.spellGroup)].length) return;
+
+        const { spellcastingDetails, spellInfo } = this.getSpells(actionData);
+        const spells = spellInfo.slice(1).flatMap(group => group.value);
+        if (!spells.length) return;
+
+        actionData.value.spellInfo = spellInfo;
+
+        const castSpells = actionData.value.castSpells ?? [];
+        for (const spell of spells) {
+            const duplicate = castSpells.some(existing =>
+                existing.name?.toLowerCase() === spell.name?.toLowerCase()
+                && existing.level === spell.level
+            );
+            if (!duplicate) castSpells.push(spell);
+        }
+        actionData.value.castSpells = castSpells;
+
+        if (spellcastingDetails.ignoredProperties?.length) {
+            actionData.value.ignoredProperties = spellcastingDetails.ignoredProperties;
+        }
+        if (spellcastingDetails.ability) {
+            actionData.value.spellcastingAbility = spellcastingDetails.ability;
+        }
+        if (spellcastingDetails.saveDc) {
+            actionData.value.spellSaveDc = spellcastingDetails.saveDc;
+        }
+
+        const chargePool = [...text.matchAll(sRegex.chargePool)][0];
+        if (chargePool) {
+            const chargeRecovery = [...text.matchAll(sRegex.chargeRecovery)][0];
+            let recovery;
+
+            if (chargeRecovery) {
+                const period = chargeRecovery.groups.time ?? (chargeRecovery.groups.daily ? "day" : undefined);
+                if (period) {
+                    recovery = {
+                        period,
+                        type: chargeRecovery.groups.all ? "recoverAll" : "formula",
+                        formula: chargeRecovery.groups.formula ?? ""
+                    };
+                }
+            }
+
+            actionData.value.spellCharges = {
+                max: parseInt(chargePool.groups.max),
+                recovery
+            };
+        }
+    }
+
     // Example: Naughty Mousey (3/Day; 5th-Level Spell; Concentration).
     static parseSpellAction(actionData) {
         const match = this.matchAndAnnotate(actionData.value.lines, sRegex.spellActionTitle)?.[0];
@@ -902,7 +961,12 @@ export class sbiParser {
 
         const spellLines = spellBlocks.flat();
         const actionsLines = [...notSpellLines, ...spellLines];
-        const titleMatchesLines = [...notSpellLines, ...spellBlocks.map(block => block[0])];
+        // Spell-group headings belong to the preceding feature even when that feature
+        // is not literally named Spellcasting or Innate Spellcasting.
+        const titleMatchesLines = [
+            ...notSpellLines.filter(l => !l.line.match(sRegex.spellGroup)),
+            ...spellBlocks.map(block => block[0])
+        ];
         
         let titleMatches = this.matchAndAnnotate(titleMatchesLines, sRegex.getBlockTitle(this.cleanLines));
         if (!titleMatches.length) {
@@ -946,12 +1010,12 @@ export class sbiParser {
         let spellGroups = [];
 
         if (spellHeaderMatches.length) {
+            const spellGroupMatches = this.matchAndAnnotate(spellBlock.value.lines, sRegex.spellGroup);
+
             let introDescription = sUtils.combineToString(spellBlock.value.lines.map(l => l.line))
                 .replace(/\n/g, " ")
-                .slice(0, spellHeaderMatches[0].index)
+                .slice(0, spellGroupMatches[0]?.index ?? spellHeaderMatches[0].index)
                 .trim();
-
-            const spellGroupMatches = this.matchAndAnnotate(spellBlock.value.lines, sRegex.spellGroup);
 
             spellGroupMatches.forEach((spellGroupMatch, i) => {
                 const nextSpellGroupMatch = spellGroupMatches[i+1];
@@ -959,22 +1023,29 @@ export class sbiParser {
                 const spellListEnd = nextSpellGroupMatch?.indices[0][0] || Infinity;
                 const spellGroup = new NameValueData(spellGroupMatch.groups.spellGroup, []);
                 const spellNameMatches = this.matchAndAnnotate(spellBlock.value.lines, sRegex.spellName, spellListStart, spellListEnd);
-                let spellType, spellCount, spellLevel;
+                let spellType, spellCount;
                 const spellGroupLevel = spellGroupMatch.groups.level ? parseInt(spellGroupMatch.groups.level) : undefined;
+
+                if (spellGroupMatch.groups.slots) {
+                    spellType = "slots";
+                    spellCount = parseInt(spellGroupMatch.groups.slots);
+                } else if (spellGroupMatch.groups.perDay) {
+                    spellType = "innate";
+                    spellCount = parseInt(spellGroupMatch.groups.perDay);
+                } else if (spellGroupMatch.groups.charges) {
+                    spellType = "charges";
+                    spellCount = parseInt(spellGroupMatch.groups.charges);
+                } else if (spellGroupMatch.groups.spellGroup.toLowerCase().includes("cantrip")) {
+                    spellType = "cantrip";
+                } else if (spellGroupMatch.groups.spellGroup.toLowerCase().includes("at will")) {
+                    spellType = spellcastingType === "spellcasting" ? "cantrip" : "at will";
+                }
+
                 for (const spellMatch of spellNameMatches) {
-                    spellLevel = undefined;
+                    let spellLevel;
                     let spellName = sUtils.capitalizeAll(spellMatch.groups.spellName).replace(/\(.*\)/, "").trim();
                     if (spellMatch.groups.spellLevel) {
                         spellLevel = parseInt(spellMatch.groups.spellLevel);
-                    }
-                    if (spellGroupMatch.groups.slots) {
-                        spellType = "slots";
-                        spellCount = parseInt(spellGroupMatch.groups.slots);
-                    } else if (spellGroupMatch.groups.perDay) {
-                        spellType = "innate";
-                        spellCount = parseInt(spellGroupMatch.groups.perDay);
-                    } else if (spellGroupMatch.groups.spellGroup.toLowerCase().includes("at will")) {
-                        spellType = spellcastingType === "spellcasting" ? "cantrip" : "at will";
                     }
                     spellGroup.value.push({
                         name: spellName,

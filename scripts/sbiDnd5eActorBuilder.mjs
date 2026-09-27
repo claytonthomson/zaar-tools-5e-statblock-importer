@@ -52,8 +52,13 @@ export class sbiDnd5eActorBuilder {
         actorData.name = this.actor.name;
         actorData.type = "npc";
 
-        const actor5e = await actorClass.create(actorData, operation);
-        if (actor5e) {
+        let actor5e;
+        try {
+            actor5e = await actorClass.create(actorData, operation);
+            if (!actor5e) {
+                throw new Error("Actor creation did not return a created Actor.");
+            }
+
             await this.actor.setSkills(actor5e);
 
             // Check if AC needs fixed (if mage armor, skip check)
@@ -66,17 +71,65 @@ export class sbiDnd5eActorBuilder {
             // Update cast activities to have the spells shown in the spellbook
             for (const item of actor5e.items) {
                 for (const castActivity of (item.system.activities ?? []).filter(a => a.type === "cast")) {
+                    const pendingSpellName = this.actor.pendingCastSpells.get(castActivity.id);
 
-                    // We only display the spell in the spellbook if it's not already granted by the Spellcasting feature
-                    const spellAlreadyInSpellcasting = castActivity.item.name !== this.actor.spellcastingFeature?.featureName && this.actor.spellcastingFeature?.spellInfo?.some(
-                        spellGroup => Array.isArray(spellGroup.value) && spellGroup.value.some(s => s.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_") === castActivity._inferredSource.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_"))
+                    if (pendingSpellName) {
+                        // D&D5e resolves Cast Activity source UUIDs synchronously during
+                        // preparation. Embedded Items inside Compendium Actors cannot be
+                        // resolved that way, so only link the placeholder for World Actors.
+                        if (destination === "world") {
+                            const placeholderSpell = actor5e.items.find(
+                                actorItem => actorItem.type === "spell"
+                                    && actorItem.name === pendingSpellName
+                                    && !actorItem.getFlag("dnd5e", "cachedFor")
+                            );
+
+                            if (!placeholderSpell) {
+                                throw new Error(`Unable to link missing spell placeholder "${pendingSpellName}" on imported Actor.`);
+                            }
+
+                            await castActivity.update({"spell.uuid": placeholderSpell.uuid});
+                        }
+                        continue;
+                    }
+
+                    // We only display the cached spell in the spellbook if it's not already
+                    // granted by Spellcasting and isn't represented by a missing-spell placeholder.
+                    const sourceSpell = castActivity.spell.uuid ? await fromUuid(castActivity.spell.uuid) : null;
+                    const spellName = sourceSpell?.name ?? castActivity.name;
+                    const normalizedSpellName = spellName?.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_");
+                    const spellAlreadyInSpellcasting = castActivity.item.name !== this.actor.spellcastingFeature?.featureName && normalizedSpellName && this.actor.spellcastingFeature?.spellInfo?.some(
+                        spellGroup => Array.isArray(spellGroup.value) && spellGroup.value.some(s => s.name.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_") === normalizedSpellName)
                     );
 
-                    if (!spellAlreadyInSpellcasting) {
+                    if (!pendingSpellName && !spellAlreadyInSpellcasting) {
                         await castActivity.update({"spell.spellbook": true});
                     }
                 }
             }
+        } catch (error) {
+            const importError = error instanceof Error ? error : new Error(String(error));
+
+            if (actor5e) {
+                try {
+                    await actorClass.deleteDocuments([actor5e.id], operation);
+                } catch (rollbackError) {
+                    const cleanupError = rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError));
+                    throw new Error(
+                        `Actor import failed while finalizing "${actor5e.name}", and the incomplete Actor could not be removed. `
+                        + `An incomplete Actor may remain at ${actor5e.uuid}. `
+                        + `Import error: ${importError.message} Rollback error: ${cleanupError.message}`,
+                        {cause: importError}
+                    );
+                }
+
+                throw new Error(
+                    `Actor import failed while finalizing "${actor5e.name}". The incomplete Actor was removed. ${importError.message}`,
+                    {cause: importError}
+                );
+            }
+
+            throw importError;
         }
 
         if (!this.actor.importIssues.missingSpells.length) {
