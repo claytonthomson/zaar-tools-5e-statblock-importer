@@ -703,11 +703,9 @@ export class sbiActor {
                 } else if (actionData.value.perDay) {
                     if (useCastActivity) {
                         foundry.utils.setProperty(castActivity, "consumption.targets", [{
-                            type: "activityUses",
+                            type: "itemUses",
                             value: "1"
                         }]);
-                        foundry.utils.setProperty(castActivity, "uses.max", "" + actionData.value.perDay);
-                        foundry.utils.setProperty(castActivity, "uses.recovery", [{period: "day", type: "recoverAll"}]);
                     }
                 } else if (spellObj.type === "innate") {
                     if (spellObj.count) {
