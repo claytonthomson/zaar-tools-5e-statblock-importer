@@ -509,6 +509,8 @@ export class sbiParser {
                 .replace(sRegex.damageTypes, "")
                 .replace(sRegex.conditionTypes, "")
                 .replace(/,/g, "")
+                .trim()
+                .replace(/^;+\s*|\s*;+$/g, "")
                 .trim();
             if (descLeftover) {
                 customType = descLeftover.replace("\n", " ");
